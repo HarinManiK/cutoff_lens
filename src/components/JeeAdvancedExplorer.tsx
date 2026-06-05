@@ -511,10 +511,6 @@ export function JeeAdvancedExplorer() {
     mobileFiltersCollapsed ? "filter-bar--collapsed-mobile" : "",
   ].filter(Boolean).join(" ");
 
-  const mobileExtraColumns = visibleColumns.filter(
-    (col) => col !== "institute" && col !== "program" && col !== "openingRank" && col !== "closingRank",
-  );
-
   return (
     <main className="page-shell">
       <header className="topbar">
@@ -803,38 +799,27 @@ export function JeeAdvancedExplorer() {
             </div>
 
             <div className="mobile-results">
-              <div className="mobile-list-header">
-                <span>IIT</span>
-                <span>Opening · Closing</span>
-              </div>
               {filteredRows.map((row) => (
-                <div className="mobile-row" key={row.id}>
-                  <div className="mobile-row__top">
-                    <span className="mobile-row__institute">
-                      {shortenInstituteName(row.institute)}
-                    </span>
-                    <span className="mobile-row__ranks">
-                      {formatRank(row.openingRankRaw)}
-                      <span className="mobile-row__sep">–</span>
-                      <span className="rank-badge rank-badge--sm">
-                        {formatRank(row.closingRankRaw)}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="mobile-row__branch">
-                    {programShortName(row.program)}
-                  </div>
-                  {mobileExtraColumns.length > 0 ? (
-                    <div className="mobile-row__extra">
-                      {mobileExtraColumns.map((col) => (
-                        <span className="mobile-row__tag" key={col}>
-                          <span>{columnLabels[col]}</span>
-                          {renderCell(row, col, enteredRankNumber)}
-                        </span>
-                      ))}
+                <article className="result-card" key={row.id}>
+                  <div className="result-card__head">
+                    <div>
+                      <h3>{shortenInstituteName(row.institute)}</h3>
+                      <p>{programShortName(row.program)}</p>
                     </div>
-                  ) : null}
-                </div>
+                    <span className="rank-badge">{formatRank(row.closingRankRaw)}</span>
+                  </div>
+
+                  <div className="card-fields">
+                    {visibleColumns
+                      .filter((column) => column !== "institute" && column !== "program")
+                      .map((column) => (
+                        <span className="card-field" key={column}>
+                          <span>{columnLabels[column]}</span>
+                          <b>{renderCell(row, column, enteredRankNumber)}</b>
+                      </span>
+                    ))}
+                  </div>
+                </article>
               ))}
             </div>
           </>
