@@ -1,0 +1,46 @@
+{
+  "name": "indianexams",
+  "version": "1.0.0",
+  "description": "Counselling cutoff explorer for Indian entrance exams.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "import:jee-advanced:2025:r5": "tsx scripts/import-cutoffs.ts data/jee_advanced_2025_round_5_IITs.csv --exam=jee-advanced --exam-name=\"JEE Advanced\" --year=2025 --round=5 --institute-type=IIT"
+  },
+  "keywords": [
+    "jee",
+    "josaa",
+    "counselling",
+    "cutoffs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0",
+    "clsx": "^2.1.1",
+    "csv-parse": "^6.2.1",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.17.0",
+    "next": "^16.2.7",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.7",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
