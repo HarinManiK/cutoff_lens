@@ -5,6 +5,7 @@ import {
   buildJeeAdvancedSystemPrompt,
   buildDatabaseOnlyJeeAdvancedAnswer,
   isAllowedJeeAdvancedQuery,
+  needsRankForJeeAdvancedQuery,
   shouldUseOfficialWebSearch,
   type AiChatMessage,
   type JeeAdvancedPageState,
@@ -51,6 +52,22 @@ export async function POST(request: NextRequest) {
   try {
     const pageState = body?.pageState ?? {};
     const context = await buildJeeAdvancedContext(lastUserMessage, pageState, messages);
+    if (!context.rank && needsRankForJeeAdvancedQuery(lastUserMessage)) {
+      return NextResponse.json({
+        message: buildDatabaseOnlyJeeAdvancedAnswer(context),
+        model: "rank-required",
+        citations: [],
+        context: {
+          rank: context.rank,
+          seatType: context.seatType,
+          gender: context.gender,
+          totalMatchingRows: context.totalMatchingRows,
+          includedRows: 0,
+          usedOfficialWebSearch: false,
+        },
+      });
+    }
+
     const useOfficialWebSearch = shouldUseOfficialWebSearch(lastUserMessage);
     const result = await callOpenRouter({
       useOfficialWebSearch,

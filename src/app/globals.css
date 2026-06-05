@@ -885,11 +885,21 @@ button {
   padding: 12px;
 }
 
-.ai-empty {
-  border: 1px dashed var(--line);
-  border-radius: 8px;
+.ai-empty-state {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
   color: var(--muted);
-  padding: 12px;
+  padding: 20px 6px;
+  text-align: center;
+}
+
+.ai-empty-state p {
+  max-width: 280px;
+  margin: 0;
   font-size: 13px;
   line-height: 1.4;
 }
@@ -921,26 +931,27 @@ button {
   color: var(--muted);
 }
 
-.ai-prompt-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  overflow: visible;
-  border-top: 1px solid rgba(31, 41, 35, 0.1);
-  padding: 9px 12px;
+.ai-starter-prompts {
+  display: grid;
+  width: min(100%, 300px);
+  gap: 8px;
 }
 
-.ai-prompt-chip {
-  flex: 0 0 auto;
-  min-height: 32px;
+.ai-starter-prompt {
+  min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
   color: var(--moss);
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 14px;
+  font-size: 13px;
   font-weight: 800;
-  white-space: nowrap;
+  text-align: center;
+}
+
+.ai-starter-prompt:hover {
+  border-color: rgba(37, 89, 71, 0.35);
+  background: var(--mint);
 }
 
 .ai-chat-form {
@@ -1255,16 +1266,6 @@ button {
     inset: auto 10px max(68px, calc(env(safe-area-inset-bottom) + 68px)) 10px;
     width: auto;
     height: min(560px, calc(100vh - 112px));
-  }
-
-  .ai-prompt-row {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .ai-prompt-row::-webkit-scrollbar {
-    display: none;
   }
 
   .filter-input {

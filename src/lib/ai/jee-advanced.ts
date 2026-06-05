@@ -241,6 +241,22 @@ export function shouldUseOfficialWebSearch(message: string) {
   ].some((keyword) => normalized.includes(keyword));
 }
 
+export function needsRankForJeeAdvancedQuery(message: string) {
+  const normalized = message.toLowerCase();
+  const isRankScopedQuestion = [
+    "my rank",
+    "best picks",
+    "best iit",
+    "best branch",
+    "what can i get",
+    "which iit",
+    "eligible",
+    "options",
+  ].some((phrase) => normalized.includes(phrase));
+
+  return isRankScopedQuestion && !rankFromMessage(message);
+}
+
 export function isAllowedJeeAdvancedQuery(message: string) {
   const normalized = message.toLowerCase();
   return [
@@ -427,8 +443,8 @@ function uniqueOptions(options: JeeAdvancedAiContext["includedRows"]) {
 export function buildDatabaseOnlyJeeAdvancedAnswer(context: JeeAdvancedAiContext) {
   if (!context.rank) {
     return [
-      "Enter your rank first, bro. For JEE Advanced, I also need category and gender to keep this accurate.",
-      `Current category: ${context.seatType}. Current gender: ${context.gender}.`,
+      "What's your JEE Advanced rank?",
+      `I also need the correct category rank type. Current category is ${context.seatType} and gender is ${context.gender}.`,
     ].join("\n\n");
   }
 

@@ -34,10 +34,9 @@ type AiChatResponse = {
 };
 
 const promptChips = [
-  "Best picks for my rank",
+  "Best picks for my IIT rank",
   "Best IITs I can get",
   "Best branches I can get",
-  "Compare my options",
 ];
 
 export function AiCounsellor({
@@ -62,7 +61,7 @@ export function AiCounsellor({
 
   const pageState = useMemo(
     () => ({
-      rank: rank || "1",
+      rank,
       seatType,
       gender,
       selectedInstitutes,
@@ -165,8 +164,15 @@ export function AiCounsellor({
 
           <div className="ai-chat-messages" ref={scrollRef}>
             {messages.length === 0 ? (
-              <div className="ai-empty">
-                Ask about your current options, or enter rank/category directly here.
+              <div className="ai-empty-state">
+                <p>Ask about your current options, or enter rank/category directly here.</p>
+                <div className="ai-starter-prompts">
+                  {promptChips.map((prompt) => (
+                    <button className="ai-starter-prompt" key={prompt} type="button" onClick={() => sendMessage(prompt)}>
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
 
@@ -182,14 +188,6 @@ export function AiCounsellor({
                 Thinking
               </div>
             ) : null}
-          </div>
-
-          <div className="ai-prompt-row">
-            {promptChips.map((prompt) => (
-              <button className="ai-prompt-chip" key={prompt} type="button" onClick={() => sendMessage(prompt)}>
-                {prompt}
-              </button>
-            ))}
           </div>
 
           <form className="ai-chat-form" onSubmit={submit}>
