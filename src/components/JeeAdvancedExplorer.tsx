@@ -20,6 +20,7 @@ import {
   shortenInstituteName,
 } from "@/lib/display";
 import { cutoffMatchesSearch, programMatchesSearch } from "@/lib/search";
+import { LogoMark } from "@/components/LogoMark";
 import type { ColumnKey, CutoffResult, CutoffsResponse, GenderFilter } from "@/lib/types";
 
 type MultiFilterKey = "institute" | "program" | "degree" | "duration" | "programType";
@@ -539,9 +540,10 @@ export function JeeAdvancedExplorer() {
             <ArrowLeft size={15} />
             Exams
           </Link>
-          <h1 className="page-title" style={{ marginTop: 14 }}>
-            JEE Advanced
-          </h1>
+          <div className="page-title-row">
+            <LogoMark className="logo-mark--page" />
+            <h1 className="page-title">JEE Advanced</h1>
+          </div>
           <p className="page-kicker">based on 2025 official data (Round 5)</p>
         </div>
       </header>

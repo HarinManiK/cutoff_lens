@@ -60,16 +60,37 @@ button {
   padding: 22px 0 18px;
 }
 
-.brand-mark {
+.logo-mark {
   display: inline-flex;
   width: 36px;
   height: 36px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(37, 89, 71, 0.18);
+  overflow: hidden;
+  border: 1px solid rgba(31, 41, 35, 0.12);
   border-radius: 8px;
-  background: #ffffff;
-  color: var(--moss);
+  background: #454acb;
+  box-shadow: 0 10px 24px rgba(31, 41, 35, 0.1);
+}
+
+.logo-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.logo-mark--page {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+}
+
+.page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
 }
 
 .page-title {

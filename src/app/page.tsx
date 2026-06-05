@@ -1,14 +1,12 @@
-import { Database } from "lucide-react";
 import { ExamCard } from "@/components/ExamCard";
+import { LogoMark } from "@/components/LogoMark";
 
 export default function Home() {
   return (
     <main className="page-shell">
       <header className="topbar">
         <div>
-          <span className="brand-mark" aria-hidden="true">
-            <Database size={19} />
-          </span>
+          <LogoMark />
           <h1 className="page-title" style={{ marginTop: 14 }}>
             Cutoff Lens
           </h1>
