@@ -7,7 +7,7 @@ type LogoMarkProps = {
 export function LogoMark({ className = "" }: LogoMarkProps) {
   return (
     <span className={["logo-mark", className].filter(Boolean).join(" ")} aria-hidden="true">
-      <Image src="/logo.svg" alt="" width={96} height={96} />
+      <Image src="/logo.png" alt="" width={96} height={96} />
     </span>
   );
 }
