@@ -91,8 +91,9 @@ function rankFromMessage(message: string) {
   const looksLikeDirectRankQuestion = /\b(got|scored|score|eligible|option|options|college|colleges|get|admission|seat)\b/.test(
     normalized,
   );
+  const looksLikeRankProfile = /\b(category|male|female|gender|open|general|obc|ews|sc|st|pwd)\b/.test(normalized);
   const broadRank = message.match(/\b(\d{2,6})\b/);
-  return broadRank && looksLikeDirectRankQuestion ? parsePositiveInteger(broadRank[1]) : null;
+  return broadRank && (looksLikeDirectRankQuestion || looksLikeRankProfile) ? parsePositiveInteger(broadRank[1]) : null;
 }
 
 function seatTypeFromMessage(message: string) {
@@ -292,6 +293,37 @@ export function isAllowedJeeAdvancedQuery(message: string) {
   ].some((keyword) => normalized.includes(keyword));
 }
 
+export function isAllowedJeeAdvancedFollowUp(message: string, messages: AiChatMessage[]) {
+  const isDirectRankProfile =
+    Boolean(rankFromMessage(message)) && (Boolean(seatTypeFromMessage(message)) || Boolean(genderFromMessage(message)));
+
+  if (isDirectRankProfile) return true;
+
+  const previousMessages = messages.slice(0, -1);
+  const hasJeeContext = previousMessages.some((previousMessage) => {
+    const content = previousMessage.content.toLowerCase();
+    return (
+      isAllowedJeeAdvancedQuery(content) ||
+      content.includes("jee advanced rank") ||
+      content.includes("current category")
+    );
+  });
+
+  if (!hasJeeContext) return false;
+
+  const normalized = message.toLowerCase();
+  const givesRankProfileOrPreference =
+    Boolean(rankFromMessage(message)) ||
+    Boolean(seatTypeFromMessage(message)) ||
+    Boolean(genderFromMessage(message)) ||
+    /^\s*\d[\d,\s]{1,8}\s*$/.test(normalized) ||
+    /\b(category|male|female|gender|open|general|obc|ews|sc|st|pwd|don't like|do not like|not interested|avoid|exclude|remove)\b/.test(
+      normalized,
+    );
+
+  return givesRankProfileOrPreference;
+}
+
 export async function buildJeeAdvancedContext(
   lastUserMessage: string,
   pageState: JeeAdvancedPageState,
@@ -467,9 +499,13 @@ export function buildDatabaseOnlyJeeAdvancedAnswer(context: JeeAdvancedAiContext
   const showPreferenceAligned = !bestBrand.every((option, index) => preferenceAligned[index] === option);
   const worthwhileTradeoffs = tradeoffOptions.slice(0, 4);
   const safer = [...preferredOptions].sort((a, b) => b.closingRank - a.closingRank).slice(0, 5);
+  const intro =
+    context.preferenceNotes.length > 0
+      ? `Got it. Based on 2025 official Round 5 IIT data for rank ${formatRank(context.rank)} (${context.seatType}, ${context.gender}), I treated your preference as important but not an automatic delete rule: ${context.preferenceNotes.join("; ")}.`
+      : `Based on 2025 official Round 5 IIT data for rank ${formatRank(context.rank)} (${context.seatType}, ${context.gender}), here are the strongest options from the current result set.`;
 
   return [
-    `Got it. Based on 2025 official Round 5 IIT data for rank ${formatRank(context.rank)} (${context.seatType}, ${context.gender}), I treated your preference as important but not an automatic delete rule${context.preferenceNotes.length > 0 ? `: ${context.preferenceNotes.join("; ")}` : ""}.`,
+    intro,
     "",
     "Best overall picks:",
     ...bestBrand.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}${formatTradeoffNote(option)}`),
@@ -484,7 +520,9 @@ export function buildDatabaseOnlyJeeAdvancedAnswer(context: JeeAdvancedAiContext
     worthwhileTradeoffs.length > 0 ? "Still worth considering despite preference mismatch:" : null,
     ...worthwhileTradeoffs.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}${formatTradeoffNote(option)}`),
     "",
-    "Safer preference-aligned picks by closing-rank margin:",
+    context.preferenceNotes.length > 0
+      ? "Safer preference-aligned picks by closing-rank margin:"
+      : "Safer picks by closing-rank margin:",
     ...(safer.length > 0
       ? safer.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`)
       : ["No safer preference-aligned options remain in the included result set."]),

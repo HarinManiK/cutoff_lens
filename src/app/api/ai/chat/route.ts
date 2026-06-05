@@ -4,6 +4,7 @@ import {
   buildJeeAdvancedDataMessage,
   buildJeeAdvancedSystemPrompt,
   buildDatabaseOnlyJeeAdvancedAnswer,
+  isAllowedJeeAdvancedFollowUp,
   isAllowedJeeAdvancedQuery,
   needsRankForJeeAdvancedQuery,
   shouldUseOfficialWebSearch,
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Message is required." }, { status: 400 });
   }
 
-  if (!isAllowedJeeAdvancedQuery(lastUserMessage)) {
+  if (!isAllowedJeeAdvancedQuery(lastUserMessage) && !isAllowedJeeAdvancedFollowUp(lastUserMessage, messages)) {
     return NextResponse.json({ message: "Sorry, can't fetch that info." });
   }
 
