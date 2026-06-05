@@ -799,8 +799,9 @@ button {
 
 .result-card__branch {
   margin: 4px 0 0;
-  color: var(--muted);
+  color: #263a31;
   font-size: 13px;
+  font-weight: 700;
   line-height: 1.3;
 }
 
