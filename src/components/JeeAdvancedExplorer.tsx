@@ -58,6 +58,8 @@ const configurableColumns: ColumnKey[] = [
   "programType",
 ];
 
+const mobileMetaColumns: ColumnKey[] = ["degree", "duration", "programType"];
+
 function normalizeColumnOrder(columns: ColumnKey[]) {
   return configurableColumns.filter((column) => columns.includes(column));
 }
@@ -801,24 +803,29 @@ export function JeeAdvancedExplorer() {
             <div className="mobile-results">
               {filteredRows.map((row) => (
                 <article className="result-card" key={row.id}>
-                  <div className="result-card__head">
-                    <div>
-                      <h3>{shortenInstituteName(row.institute)}</h3>
-                      <p>{programShortName(row.program)}</p>
-                    </div>
-                    <span className="rank-badge">{formatRank(row.closingRankRaw)}</span>
+                  <div className="result-card__top">
+                    <h3>{shortenInstituteName(row.institute)}</h3>
+                    <span className="result-rank">
+                      <span>Open</span>
+                      <b>{formatRank(row.openingRankRaw)}</b>
+                    </span>
+                    <span className="result-rank result-rank--closing">
+                      <span>Close</span>
+                      <b>{formatRank(row.closingRankRaw)}</b>
+                    </span>
                   </div>
 
-                  <div className="card-fields">
-                    {visibleColumns
-                      .filter((column) => column !== "institute" && column !== "program")
-                      .map((column) => (
-                        <span className="card-field" key={column}>
-                          <span>{columnLabels[column]}</span>
-                          <b>{renderCell(row, column, enteredRankNumber)}</b>
-                      </span>
-                    ))}
-                  </div>
+                  <p className="result-card__branch">{programShortName(row.program)}</p>
+
+                  {visibleColumns.some((column) => mobileMetaColumns.includes(column)) ? (
+                    <div className="result-card__meta">
+                      {visibleColumns
+                        .filter((column) => mobileMetaColumns.includes(column))
+                        .map((column) => (
+                          <span key={column}>{renderCell(row, column, enteredRankNumber)}</span>
+                        ))}
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
