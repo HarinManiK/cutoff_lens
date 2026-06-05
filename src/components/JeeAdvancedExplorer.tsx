@@ -567,7 +567,7 @@ export function JeeAdvancedExplorer() {
             />
           </div>
 
-          <label className="filter-field">
+          <label className="filter-field filter-field--category">
             <span>Category</span>
             <select
               className="filter-select"

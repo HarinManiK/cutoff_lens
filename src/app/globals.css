@@ -921,6 +921,35 @@ button {
     backdrop-filter: none;
   }
 
+  .filter-strip {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .filter-field {
+    min-width: 0;
+  }
+
+  .filter-field--range,
+  .filter-field--category {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .filter-field--range {
+    grid-column: 1;
+  }
+
+  .filter-field--category {
+    grid-column: 2;
+  }
+
+  .filter-field--gender,
+  .filter-field--multi {
+    grid-column: 1 / -1;
+  }
+
   .more-filters-panel {
     grid-template-columns: 1fr;
   }
@@ -1016,6 +1045,10 @@ button {
 
   .filter-input {
     width: 132px;
+  }
+
+  .filter-input--rank {
+    width: 112px;
   }
 
   .table-wrap {
