@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const pageState = body?.pageState ?? {};
-    const context = await buildJeeAdvancedContext(lastUserMessage, pageState);
+    const context = await buildJeeAdvancedContext(lastUserMessage, pageState, messages);
     const useOfficialWebSearch = shouldUseOfficialWebSearch(lastUserMessage);
     const result = await callOpenRouter({
       useOfficialWebSearch,
