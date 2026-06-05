@@ -30,6 +30,7 @@ type QuickSelectGroup = {
   label: string;
   values: string[];
 };
+type OptionLayout = "grid" | "list";
 
 const defaultColumns: ColumnKey[] = [
   "institute",
@@ -166,6 +167,9 @@ function MultiSelectPanel({
   renderOption = (option) => option,
   matchesSearch,
   quickSelectGroups = [],
+  quickSelectLabel,
+  optionsLabel,
+  optionLayout = "grid",
 }: {
   title: string;
   options: string[];
@@ -179,6 +183,9 @@ function MultiSelectPanel({
   renderOption?: (option: string) => string;
   matchesSearch?: (option: string, query: string) => boolean;
   quickSelectGroups?: QuickSelectGroup[];
+  quickSelectLabel?: string;
+  optionsLabel?: string;
+  optionLayout?: OptionLayout;
 }) {
   const query = searchValue.trim().toLowerCase();
   const visibleOptions = query
@@ -198,6 +205,19 @@ function MultiSelectPanel({
     }
 
     onChange([...selectedValues, option]);
+  }
+
+  function toggleGroup(groupValues: string[]) {
+    const valuesInGroup = new Set(groupValues);
+    const hasWholeGroup = groupValues.every((value) => selectedValues.includes(value));
+
+    if (hasWholeGroup) {
+      onChange(selectedValues.filter((value) => !valuesInGroup.has(value)));
+      return;
+    }
+
+    const nextValues = new Set([...selectedValues, ...groupValues]);
+    onChange(options.filter((option) => nextValues.has(option)));
   }
 
   const panelClassName = [
@@ -231,22 +251,34 @@ function MultiSelectPanel({
       </label>
 
       {quickSelectGroups.length > 0 ? (
-        <div className="multi-filter-groups">
-          {quickSelectGroups.map((group) => (
-            <button
-              className="multi-filter-group"
-              type="button"
-              key={group.label}
-              onClick={() => onChange(group.values)}
-            >
-              {group.label}
-            </button>
-          ))}
+        <div className="multi-filter-section multi-filter-section--quick">
+          {quickSelectLabel ? <div className="multi-filter-section-title">{quickSelectLabel}</div> : null}
+          <div className="multi-filter-groups">
+            {quickSelectGroups.map((group) => {
+              const isWholeGroupSelected = group.values.every((value) => selectedValues.includes(value));
+
+              return (
+                <label
+                  className={isWholeGroupSelected ? "multi-option multi-option--group is-active" : "multi-option multi-option--group"}
+                  key={group.label}
+                >
+                  <input
+                    checked={isWholeGroupSelected}
+                    type="checkbox"
+                    onChange={() => toggleGroup(group.values)}
+                  />
+                  <span>{group.label}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
       {visibleOptions.length > 0 ? (
-        <div className="multi-option-list">
+        <>
+          {optionsLabel ? <div className="multi-filter-section-title multi-filter-section-title--options">{optionsLabel}</div> : null}
+          <div className={optionLayout === "list" ? "multi-option-list multi-option-list--list" : "multi-option-list"}>
           {visibleOptions.map((option) => (
             <label className="multi-option" key={option}>
               <input
@@ -257,7 +289,8 @@ function MultiSelectPanel({
               <span>{renderOption(option)}</span>
             </label>
           ))}
-        </div>
+          </div>
+        </>
       ) : (
         <div className="multi-empty">No matching options</div>
       )}
@@ -687,6 +720,9 @@ export function JeeAdvancedExplorer() {
                 matchesSearch={programMatchesSearch}
                 renderOption={programShortName}
                 quickSelectGroups={programQuickSelectGroups}
+                quickSelectLabel="Aggregated branches"
+                optionsLabel="Specific branches"
+                optionLayout="list"
                 searchValue={programSearch}
                 selectedValues={selectedPrograms}
                 onChange={setSelectedPrograms}
