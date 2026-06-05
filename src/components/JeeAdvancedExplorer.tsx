@@ -23,6 +23,7 @@ import { cutoffMatchesSearch, programMatchesSearch } from "@/lib/search";
 import { LogoMark } from "@/components/LogoMark";
 import { branchGroups } from "@/lib/branch-groups";
 import type { ColumnKey, CutoffResult, CutoffsResponse, GenderFilter } from "@/lib/types";
+import { AiCounsellor } from "@/components/AiCounsellor";
 
 type MultiFilterKey = "institute" | "program" | "degree" | "duration" | "programType";
 type PanelMultiFilter = "institute" | "program" | "degree" | "programType";
@@ -906,6 +907,20 @@ export function JeeAdvancedExplorer() {
           </>
         ) : null}
       </section>
+
+      <AiCounsellor
+        exam="jee-advanced"
+        rank={rank}
+        seatType={seatType}
+        gender={gender}
+        selectedInstitutes={selectedInstitutes}
+        selectedPrograms={selectedPrograms}
+        selectedDegrees={selectedDegrees}
+        selectedDurations={selectedDurations}
+        selectedProgramTypes={selectedProgramTypes}
+        tableSearch={tableSearch}
+        matchingRows={filteredRows}
+      />
     </main>
   );
 }
