@@ -6,10 +6,10 @@ export default function Home() {
     <main className="page-shell">
       <header className="topbar">
         <div>
-          <LogoMark />
-          <h1 className="page-title" style={{ marginTop: 14 }}>
-            Cutoff Lens
-          </h1>
+          <div className="landing-title-row">
+            <LogoMark className="logo-mark--landing" />
+            <h1 className="page-title">Cutoff Lens</h1>
+          </div>
           <p className="page-kicker">Find which college and course you would get.</p>
         </div>
       </header>

@@ -82,6 +82,18 @@ button {
   flex: 0 0 auto;
 }
 
+.logo-mark--landing {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+}
+
+.landing-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .page-title-row {
   display: flex;
   align-items: center;
