@@ -48,7 +48,7 @@ export type JeeAdvancedAiContext = {
   rank: number | null;
   rankWasInferredFromMessage: boolean;
   preferenceNotes: string[];
-  excludedByPreferenceCount: number;
+  preferenceMatchedRows: number;
   seatType: string;
   gender: GenderFilter;
   year: 2025;
@@ -62,6 +62,8 @@ export type JeeAdvancedAiContext = {
     degree: string;
     duration: string;
     courseType: string;
+    preferenceFit: "preferred" | "tradeoff";
+    preferenceReason: string | null;
   }>;
   truncated: boolean;
   activeFilters: {
@@ -130,9 +132,7 @@ function extractPreferenceNotes(messages: AiChatMessage[]) {
   if (/\bdesign\b/.test(text)) notes.push("avoid design courses");
   if (/\barchitecture\b|\barch\b/.test(text)) notes.push("avoid architecture courses");
   if (/\bmaths?\b|\bmathematics\b/.test(text)) notes.push("avoid direct mathematics courses");
-  if (/\bphysics\b|\bgeophysics\b|\bphysical science\b/.test(text)) {
-    notes.push("avoid physics, geophysics, and physical science courses");
-  }
+  if (/\bphysics\b|\bphysical science\b/.test(text)) notes.push("avoid direct physics and physical science courses");
   if (/\bchemistry\b|\bchemical sciences?\b/.test(text)) {
     notes.push("avoid direct chemistry and chemical science courses");
   }
@@ -140,27 +140,34 @@ function extractPreferenceNotes(messages: AiChatMessage[]) {
   return notes;
 }
 
-function matchesPreferenceExclusion(program: string, preferenceNotes: string[]) {
-  if (preferenceNotes.length === 0) return false;
+function preferenceIssueForProgram(program: string, preferenceNotes: string[]) {
+  if (preferenceNotes.length === 0) return null;
 
   const programName = programShortName(program).toLowerCase();
 
-  return preferenceNotes.some((note) => {
-    if (note.includes("design")) return /\bdesign\b/.test(programName);
-    if (note.includes("architecture")) return /\barchitecture\b|\bb\.arch\b/.test(programName);
+  for (const note of preferenceNotes) {
+    if (note.includes("design") && /\bdesign\b/.test(programName)) return "user said they do not like design";
+    if (note.includes("architecture") && /\barchitecture\b|\bb\.arch\b/.test(programName)) {
+      return "user said they do not like architecture";
+    }
     if (note.includes("mathematics")) {
-      return (
+      const isDirectMath =
         /\bmathematics\b/.test(programName) &&
-        !/\bmathematics\s*(and|&)\s*computing\b/.test(programName)
-      );
+        !/\bmathematics\s*(and|&)\s*computing\b/.test(programName);
+      if (isDirectMath) return "user said they do not like direct mathematics";
     }
-    if (note.includes("physics")) return /\bphysics\b|\bgeophysics\b|\bphysical science\b/.test(programName);
+    if (note.includes("physics") && /\bphysics\b|\bphysical science\b/.test(programName)) {
+      return "user said they do not like direct physics or physical science";
+    }
     if (note.includes("chemistry")) {
-      return /\bchemistry\b|\bchemical sciences?\b/.test(programName);
+      const isDirectChemistry =
+        /\bchemistry\b|\bchemical sciences?\b/.test(programName) &&
+        !/\bchemical engineering\b/.test(programName);
+      if (isDirectChemistry) return "user said they do not like direct chemistry";
     }
+  }
 
-    return false;
-  });
+  return null;
 }
 
 function toResult(row: SupabaseCutoffRow): CutoffResult {
@@ -289,7 +296,7 @@ export async function buildJeeAdvancedContext(
   const activeDurations = pageState.selectedDurations ?? [];
   const activeProgramTypes = pageState.selectedProgramTypes ?? [];
 
-  const rowsBeforePreference = rows
+  const filteredRows = rows
     .filter((row) => (rank ? row.closingRankNumber >= rank : true))
     .filter((row) => (activeInstitutes.length > 0 ? activeInstitutes.includes(row.institute) : true))
     .filter((row) => (activePrograms.length > 0 ? activePrograms.includes(row.program) : true))
@@ -304,14 +311,12 @@ export async function buildJeeAdvancedContext(
     .filter((row) => {
       const meta = programMeta(row.program);
       return activeProgramTypes.length > 0 ? activeProgramTypes.includes(meta.programType) : true;
-    });
-
-  const filteredRows = rowsBeforePreference
-    .filter((row) => !matchesPreferenceExclusion(row.program, preferenceNotes))
+    })
     .sort(compareCutoffByInstituteAndProgram);
 
   const includedRows = filteredRows.slice(0, MAX_ROWS_FOR_AI).map((row) => {
     const meta = programMeta(row.program);
+    const preferenceReason = preferenceIssueForProgram(row.program, preferenceNotes);
 
     return {
       institute: shortenInstituteName(row.institute),
@@ -321,6 +326,8 @@ export async function buildJeeAdvancedContext(
       degree: meta.degree,
       duration: meta.duration,
       courseType: meta.programType,
+      preferenceFit: preferenceReason ? ("tradeoff" as const) : ("preferred" as const),
+      preferenceReason,
     };
   });
 
@@ -328,7 +335,7 @@ export async function buildJeeAdvancedContext(
     rank,
     rankWasInferredFromMessage: Boolean(messageRank),
     preferenceNotes,
-    excludedByPreferenceCount: rowsBeforePreference.length - filteredRows.length,
+    preferenceMatchedRows: filteredRows.filter((row) => preferenceIssueForProgram(row.program, preferenceNotes)).length,
     seatType: validSeatType,
     gender,
     year: 2025 as const,
@@ -365,7 +372,8 @@ export function buildJeeAdvancedSystemPrompt(context: JeeAdvancedAiContext, useO
     "- If rank is missing for a rank-specific query, ask for rank, category, and gender instead of guessing.",
     "",
     "Conversation style:",
-    "- Use the user's latest message and previous preferences. If they dislike a course family, stop recommending that family.",
+    "- Use the user's latest message and previous preferences. Treat dislikes as strong preferences, not absolute bans.",
+    "- If a disliked/interdisciplinary course is still a strong IIT/brand/safety tradeoff, mention it honestly instead of hiding it.",
     "- Be concise, natural, and preference-aware.",
     "- Choose the answer structure yourself based on the question. Do not force the same categories every time.",
     "- Explain tradeoffs without promotional language.",
@@ -379,8 +387,8 @@ export function buildJeeAdvancedSystemPrompt(context: JeeAdvancedAiContext, useO
     "",
     `Current interpreted filters: rank=${rankText}, category=${context.seatType}, gender=${context.gender}, year=2025, round=5.`,
     context.preferenceNotes.length > 0 ? `User preferences to respect: ${context.preferenceNotes.join("; ")}.` : "",
-    context.excludedByPreferenceCount > 0
-      ? `${context.excludedByPreferenceCount} otherwise-matching rows were removed because of user preferences.`
+    context.preferenceMatchedRows > 0
+      ? `${context.preferenceMatchedRows} eligible rows conflict with stated preferences; they are still included as tradeoff options when IIT/brand/safety makes them worth considering.`
       : "",
     `Matching cutoff rows available to you: ${context.totalMatchingRows}. Rows included in this prompt: ${context.includedRows.length}.`,
   ].join("\n");
@@ -399,6 +407,10 @@ function formatOption(
 ) {
   const margin = rank ? `, margin +${formatRank(option.closingRank - rank)}` : "";
   return `${option.institute} - ${option.branch} (opening ${formatRank(option.openingRank)}, closing ${formatRank(option.closingRank)}${margin})`;
+}
+
+function formatTradeoffNote(option: JeeAdvancedAiContext["includedRows"][number]) {
+  return option.preferenceReason ? ` - tradeoff: ${option.preferenceReason}` : "";
 }
 
 function uniqueOptions(options: JeeAdvancedAiContext["includedRows"]) {
@@ -424,27 +436,42 @@ export function buildDatabaseOnlyJeeAdvancedAnswer(context: JeeAdvancedAiContext
     return [
       `Based on 2025 official Round 5 IIT data, I don't see matching options for rank ${formatRank(context.rank)} with ${context.seatType} / ${context.gender}.`,
       context.preferenceNotes.length > 0
-        ? "Your course preferences also removed some otherwise eligible rows. You can relax those preferences if you want a wider list."
+        ? "Your preferences are noted, but the current rank/category/filter combination itself has no matching rows."
         : "Try changing category/gender only if that matches your actual rank type, or remove branch/institution filters.",
     ].join("\n\n");
   }
 
   const options = uniqueOptions(context.includedRows);
-  const bestBrand = options.slice(0, 6);
-  const bestBranch = [...options].sort((a, b) => a.closingRank - b.closingRank).slice(0, 6);
-  const safer = [...options].sort((a, b) => b.closingRank - a.closingRank).slice(0, 5);
+  const preferredOptions = options.filter((option) => option.preferenceFit === "preferred");
+  const tradeoffOptions = options.filter((option) => option.preferenceFit === "tradeoff");
+  const bestBrand = options
+    .filter((option) => option.preferenceFit === "preferred")
+    .slice(0, 6);
+  const preferenceAligned = preferredOptions.slice(0, 6);
+  const showPreferenceAligned = !bestBrand.every((option, index) => preferenceAligned[index] === option);
+  const worthwhileTradeoffs = tradeoffOptions.slice(0, 4);
+  const safer = [...preferredOptions].sort((a, b) => b.closingRank - a.closingRank).slice(0, 5);
 
   return [
-    `Got it. Based on 2025 official Round 5 IIT data for rank ${formatRank(context.rank)} (${context.seatType}, ${context.gender}), I filtered your current options${context.preferenceNotes.length > 0 ? ` and respected this preference: ${context.preferenceNotes.join("; ")}` : ""}.`,
+    `Got it. Based on 2025 official Round 5 IIT data for rank ${formatRank(context.rank)} (${context.seatType}, ${context.gender}), I treated your preference as important but not an automatic delete rule${context.preferenceNotes.length > 0 ? `: ${context.preferenceNotes.join("; ")}` : ""}.`,
     "",
-    "Good picks after that filter:",
-    ...bestBrand.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`),
+    "Best overall picks:",
+    ...bestBrand.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}${formatTradeoffNote(option)}`),
+    showPreferenceAligned ? "" : null,
+    showPreferenceAligned ? "More preference-aligned picks:" : null,
+    ...(showPreferenceAligned
+      ? preferenceAligned.length > 0
+        ? preferenceAligned.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`)
+        : ["No clean preference-aligned options remain in the included result set."]
+      : []),
+    worthwhileTradeoffs.length > 0 ? "" : null,
+    worthwhileTradeoffs.length > 0 ? "Still worth considering despite preference mismatch:" : null,
+    ...worthwhileTradeoffs.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}${formatTradeoffNote(option)}`),
     "",
-    "Strong branch-side picks:",
-    ...bestBranch.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`),
-    "",
-    "Safer picks by closing-rank margin:",
-    ...safer.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`),
+    "Safer preference-aligned picks by closing-rank margin:",
+    ...(safer.length > 0
+      ? safer.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`)
+      : ["No safer preference-aligned options remain in the included result set."]),
     context.truncated
       ? "\nI used the strongest included rows from your current filtered result set. Narrow Institution/Branch filters if you want a tighter comparison."
       : "",
