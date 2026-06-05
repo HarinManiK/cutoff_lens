@@ -343,7 +343,7 @@ export function JeeAdvancedExplorer() {
   const [programSearch, setProgramSearch] = useState("");
   const [degreeSearch, setDegreeSearch] = useState("");
   const [programTypeSearch, setProgramTypeSearch] = useState("");
-  const [mobileFiltersCollapsed, setMobileFiltersCollapsed] = useState(false);
+  const [showFilterJump, setShowFilterJump] = useState(false);
 
   const rankNumber = useMemo(() => {
     const trimmedRank = rank.trim();
@@ -496,6 +496,29 @@ export function JeeAdvancedExplorer() {
     }
   }, [programTypeOptions, selectedProgramTypes]);
 
+  useEffect(() => {
+    function updateFilterJumpVisibility() {
+      const filterBar = document.getElementById("jee-advanced-filters");
+      const isMobile = window.matchMedia("(max-width: 860px)").matches;
+
+      if (!filterBar || !isMobile) {
+        setShowFilterJump(false);
+        return;
+      }
+
+      setShowFilterJump(filterBar.getBoundingClientRect().bottom < 8);
+    }
+
+    updateFilterJumpVisibility();
+    window.addEventListener("scroll", updateFilterJumpVisibility, { passive: true });
+    window.addEventListener("resize", updateFilterJumpVisibility);
+
+    return () => {
+      window.removeEventListener("scroll", updateFilterJumpVisibility);
+      window.removeEventListener("resize", updateFilterJumpVisibility);
+    };
+  }, []);
+
   const filteredRows = useMemo(() => {
     const nextRows = rows
       .filter((row) => rowMatchesSelections(row))
@@ -507,11 +530,6 @@ export function JeeAdvancedExplorer() {
     tableSearch,
     rowMatchesSelections,
   ]);
-
-  const filterBarClassName = [
-    "filter-bar",
-    mobileFiltersCollapsed ? "filter-bar--collapsed-mobile" : "",
-  ].filter(Boolean).join(" ");
 
   return (
     <main className="page-shell">
@@ -528,21 +546,9 @@ export function JeeAdvancedExplorer() {
         </div>
       </header>
 
-      {mobileFiltersCollapsed ? (
-        <div className="mobile-filter-show-rail">
-          <button
-            className="mobile-filter-show-button"
-            type="button"
-            aria-label="Show filters"
-            onClick={() => setMobileFiltersCollapsed(false)}
-          >
-            <ChevronDown size={18} />
-          </button>
-        </div>
-      ) : null}
-
       <section
-        className={filterBarClassName}
+        className="filter-bar"
+        id="jee-advanced-filters"
         aria-label="Filters"
       >
         <div className="filter-strip">
@@ -748,17 +754,23 @@ export function JeeAdvancedExplorer() {
           </label>
         </div>
 
-        <div className="mobile-filter-collapse-row">
-          <button
-            className="mobile-filter-collapse-button"
-            type="button"
-            aria-label="Hide filters"
-            onClick={() => setMobileFiltersCollapsed(true)}
-          >
-            <ChevronUp size={18} />
-          </button>
-        </div>
       </section>
+
+      {showFilterJump ? (
+        <button
+          className="mobile-scroll-to-filters-button"
+          type="button"
+          aria-label="Scroll to filters"
+          onClick={() => {
+            document.getElementById("jee-advanced-filters")?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }}
+        >
+          <ChevronUp size={20} />
+        </button>
+      ) : null}
 
       <section className="results-shell">
         {error ? <div className="empty-state">{error}</div> : null}
