@@ -768,83 +768,67 @@ button {
 }
 
 .result-card {
-  border-bottom: 1px solid #edf0ea;
-  background: rgba(255, 255, 255, 0.86);
-  padding: 9px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 13px;
+  box-shadow: 0 10px 28px rgba(31, 41, 35, 0.06);
 }
 
 .result-card + .result-card {
-  margin-top: 0;
+  margin-top: 10px;
 }
 
-.result-card:last-child {
-  border-bottom: 0;
+.result-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.result-card__top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
+.result-card__head > div {
+  min-width: 0;
 }
 
-.result-card__top h3 {
+.result-card__head .rank-badge {
+  flex: 0 0 auto;
+}
+
+.result-card h3 {
   margin: 0;
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.result-rank {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
+.result-card p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.card-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.card-field {
+  border: 1px solid #eef0ea;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.card-field span {
+  display: block;
   color: var(--muted);
   font-size: 11px;
-  line-height: 1;
-  white-space: nowrap;
 }
 
-.result-rank b {
-  color: var(--ink);
+.card-field b {
+  display: block;
+  margin-top: 3px;
   font-size: 13px;
-  font-weight: 800;
-}
-
-.result-rank--closing b {
-  min-width: 54px;
-  border-radius: 7px;
-  background: var(--mint);
-  color: var(--moss);
-  padding: 3px 7px;
-  text-align: center;
-}
-
-.result-card__branch {
-  margin: 4px 0 0;
-  color: #263a31;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.result-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  margin-top: 5px;
-  color: #4d5e55;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.result-card__meta span:not(:last-child)::after {
-  content: "·";
-  margin-left: 8px;
 }
 
 .empty-state {
@@ -1070,11 +1054,10 @@ button {
 
   .mobile-results {
     display: block;
-    overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: #ffffff;
-    box-shadow: 0 10px 28px rgba(31, 41, 35, 0.05);
+  }
+
+  .result-card__head .rank-badge {
+    display: none;
   }
 
   .exam-card__stats {
