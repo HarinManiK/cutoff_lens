@@ -1060,7 +1060,8 @@ button {
   }
 
   .filter-input--rank {
-    width: 112px;
+    width: 104px;
+    padding-inline: 8px;
   }
 
   .table-wrap {
