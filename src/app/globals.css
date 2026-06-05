@@ -828,7 +828,7 @@ button {
   flex-direction: column;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.98);
+  background: #ffffff;
   box-shadow: 0 24px 70px rgba(31, 41, 35, 0.24);
   overflow: hidden;
 }
@@ -923,9 +923,9 @@ button {
 
 .ai-prompt-row {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
+  overflow: visible;
   border-top: 1px solid rgba(31, 41, 35, 0.1);
   padding: 9px 12px;
 }
@@ -1255,6 +1255,16 @@ button {
     inset: auto 10px max(68px, calc(env(safe-area-inset-bottom) + 68px)) 10px;
     width: auto;
     height: min(560px, calc(100vh - 112px));
+  }
+
+  .ai-prompt-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .ai-prompt-row::-webkit-scrollbar {
+    display: none;
   }
 
   .filter-input {

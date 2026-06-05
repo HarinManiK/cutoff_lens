@@ -62,7 +62,7 @@ export function AiCounsellor({
 
   const pageState = useMemo(
     () => ({
-      rank,
+      rank: rank || "1",
       seatType,
       gender,
       selectedInstitutes,

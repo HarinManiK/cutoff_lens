@@ -3,6 +3,7 @@ import {
   buildJeeAdvancedContext,
   buildJeeAdvancedDataMessage,
   buildJeeAdvancedSystemPrompt,
+  buildDatabaseOnlyJeeAdvancedAnswer,
   isAllowedJeeAdvancedQuery,
   shouldUseOfficialWebSearch,
   type AiChatMessage,
@@ -67,6 +68,23 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.ok) {
+      if (!useOfficialWebSearch) {
+        return NextResponse.json({
+          message: buildDatabaseOnlyJeeAdvancedAnswer(context),
+          model: "database-only-fallback",
+          citations: [],
+          context: {
+            rank: context.rank,
+            seatType: context.seatType,
+            gender: context.gender,
+            totalMatchingRows: context.totalMatchingRows,
+            includedRows: context.includedRows.length,
+            usedOfficialWebSearch: false,
+            fallbackReason: result.message,
+          },
+        });
+      }
+
       return NextResponse.json(
         {
           error: result.message,

@@ -322,3 +322,61 @@ export function buildJeeAdvancedDataMessage(context: JeeAdvancedAiContext) {
     JSON.stringify(context, null, 2),
   ].join("\n");
 }
+
+function formatOption(
+  option: JeeAdvancedAiContext["includedRows"][number],
+  rank: number | null,
+) {
+  const margin = rank ? `, margin +${formatRank(option.closingRank - rank)}` : "";
+  return `${option.institute} - ${option.branch} (opening ${formatRank(option.openingRank)}, closing ${formatRank(option.closingRank)}${margin})`;
+}
+
+function uniqueOptions(options: JeeAdvancedAiContext["includedRows"]) {
+  const seen = new Set<string>();
+
+  return options.filter((option) => {
+    const key = `${option.institute}|${option.branch}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function buildDatabaseOnlyJeeAdvancedAnswer(context: JeeAdvancedAiContext) {
+  if (!context.rank) {
+    return [
+      "Enter your rank first, bro. For JEE Advanced, I also need category and gender to keep this accurate.",
+      `Current category: ${context.seatType}. Current gender: ${context.gender}.`,
+    ].join("\n\n");
+  }
+
+  if (context.totalMatchingRows === 0) {
+    return [
+      `Based on 2025 official Round 5 IIT data, I don't see matching options for rank ${formatRank(context.rank)} with ${context.seatType} / ${context.gender}.`,
+      "Try changing category/gender only if that matches your actual rank type, or remove branch/institution filters.",
+    ].join("\n\n");
+  }
+
+  const options = uniqueOptions(context.includedRows);
+  const bestBrand = options.slice(0, 6);
+  const bestBranch = [...options].sort((a, b) => a.closingRank - b.closingRank).slice(0, 6);
+  const safer = [...options].sort((a, b) => b.closingRank - a.closingRank).slice(0, 5);
+
+  return [
+    `Based on 2025 official Round 5 IIT data for rank ${formatRank(context.rank)} (${context.seatType}, ${context.gender}), these are the strongest picks from your current options.`,
+    "",
+    "Best IIT / brand-side options:",
+    ...bestBrand.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`),
+    "",
+    "Best branch-side options:",
+    ...bestBranch.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`),
+    "",
+    "Safer options by closing-rank margin:",
+    ...safer.map((option, index) => `${index + 1}. ${formatOption(option, context.rank)}`),
+    context.truncated
+      ? "\nI used the strongest included rows from your current filtered result set. Narrow Institution/Branch filters if you want a tighter comparison."
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
