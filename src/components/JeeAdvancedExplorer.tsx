@@ -82,18 +82,26 @@ function LabeledSelect({
   value,
   options,
   onChange,
+  onOpen,
   renderOption = (option) => option,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
+  onOpen?: () => void;
   renderOption?: (option: string) => string;
 }) {
   return (
     <label className="filter-field">
       <span>{label}</span>
-      <select className="filter-select" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select
+        className="filter-select"
+        value={value}
+        onFocus={onOpen}
+        onPointerDown={onOpen}
+        onChange={(event) => onChange(event.target.value)}
+      >
         <option value="">All</option>
         {options.map((option) => (
           <option key={option} value={option}>
@@ -344,6 +352,10 @@ export function JeeAdvancedExplorer() {
   const [programTypeSearch, setProgramTypeSearch] = useState("");
   const [showFilterJump, setShowFilterJump] = useState(false);
 
+  const closeOpenPanels = useCallback(() => {
+    setOpenMultiFilter(null);
+  }, []);
+
   const rankNumber = useMemo(() => {
     const trimmedRank = rank.trim();
     if (!trimmedRank) return 1;
@@ -570,6 +582,8 @@ export function JeeAdvancedExplorer() {
             <select
               className="filter-select"
               value={seatType}
+              onFocus={closeOpenPanels}
+              onPointerDown={closeOpenPanels}
               onChange={(event) => {
                 setSeatType(event.target.value);
                 clearSecondaryFilters();
@@ -588,6 +602,8 @@ export function JeeAdvancedExplorer() {
             <select
               className="filter-select"
               value={gender}
+              onFocus={closeOpenPanels}
+              onPointerDown={closeOpenPanels}
               onChange={(event) => {
                 setGender(event.target.value as GenderFilter);
                 clearSecondaryFilters();
@@ -706,6 +722,7 @@ export function JeeAdvancedExplorer() {
               label="Course Duration"
               options={durationOptions}
               value={selectedDurations[0] ?? ""}
+              onOpen={closeOpenPanels}
               onChange={(value) => setSelectedDurations(value ? [value] : [])}
             />
 
