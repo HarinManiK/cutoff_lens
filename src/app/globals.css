@@ -447,6 +447,30 @@ button {
   outline: 0;
 }
 
+.multi-filter-groups {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.multi-filter-group {
+  min-height: 32px;
+  border: 1px solid rgba(37, 89, 71, 0.2);
+  border-radius: 8px;
+  background: #f7fbf4;
+  color: var(--moss);
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.multi-filter-group:hover {
+  border-color: rgba(37, 89, 71, 0.34);
+  background: var(--mint);
+}
+
 .multi-option-list {
   display: grid;
   flex: 1 1 auto;

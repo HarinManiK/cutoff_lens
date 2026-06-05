@@ -21,10 +21,15 @@ import {
 } from "@/lib/display";
 import { cutoffMatchesSearch, programMatchesSearch } from "@/lib/search";
 import { LogoMark } from "@/components/LogoMark";
+import { branchGroups } from "@/lib/branch-groups";
 import type { ColumnKey, CutoffResult, CutoffsResponse, GenderFilter } from "@/lib/types";
 
 type MultiFilterKey = "institute" | "program" | "degree" | "duration" | "programType";
 type PanelMultiFilter = "institute" | "program" | "degree" | "programType";
+type QuickSelectGroup = {
+  label: string;
+  values: string[];
+};
 
 const defaultColumns: ColumnKey[] = [
   "institute",
@@ -160,6 +165,7 @@ function MultiSelectPanel({
   align = "left",
   renderOption = (option) => option,
   matchesSearch,
+  quickSelectGroups = [],
 }: {
   title: string;
   options: string[];
@@ -172,6 +178,7 @@ function MultiSelectPanel({
   align?: "left" | "right";
   renderOption?: (option: string) => string;
   matchesSearch?: (option: string, query: string) => boolean;
+  quickSelectGroups?: QuickSelectGroup[];
 }) {
   const query = searchValue.trim().toLowerCase();
   const visibleOptions = query
@@ -222,6 +229,21 @@ function MultiSelectPanel({
           onChange={(event) => onSearchChange(event.target.value)}
         />
       </label>
+
+      {quickSelectGroups.length > 0 ? (
+        <div className="multi-filter-groups">
+          {quickSelectGroups.map((group) => (
+            <button
+              className="multi-filter-group"
+              type="button"
+              key={group.label}
+              onClick={() => onChange(group.values)}
+            >
+              {group.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {visibleOptions.length > 0 ? (
         <div className="multi-option-list">
@@ -460,6 +482,15 @@ export function JeeAdvancedExplorer() {
     return uniqueSorted(rowsForOptions("program").map((row) => row.program));
   }, [rowsForOptions]);
 
+  const programQuickSelectGroups = useMemo(() => {
+    return branchGroups
+      .map((group) => ({
+        label: group.label,
+        values: programOptions.filter((program) => group.matches(program)),
+      }))
+      .filter((group) => group.values.length > 0);
+  }, [programOptions]);
+
   const degreeOptions = useMemo(() => {
     return uniqueSorted(rowsForOptions("degree").map((row) => programMeta(row.program).degree));
   }, [rowsForOptions]);
@@ -655,6 +686,7 @@ export function JeeAdvancedExplorer() {
                 options={programOptions}
                 matchesSearch={programMatchesSearch}
                 renderOption={programShortName}
+                quickSelectGroups={programQuickSelectGroups}
                 searchValue={programSearch}
                 selectedValues={selectedPrograms}
                 onChange={setSelectedPrograms}
