@@ -104,75 +104,92 @@ export async function callOpenRouter({
     };
   }
 
-  const body = {
-    models: getCounsellorModels(),
-    messages,
-    temperature: 0.2,
-    max_tokens: 1200,
-    provider: {
-      allow_fallbacks: true,
-      require_parameters: true,
-      sort: {
-        by: "throughput",
-        partition: "model",
+  const allModels = getCounsellorModels();
+  let lastError = { ok: false as const, status: 500, message: "No AI models are configured." };
+
+  for (let index = 0; index < allModels.length; index += 3) {
+    const modelBatch = allModels.slice(index, index + 3);
+
+    const body = {
+      models: modelBatch,
+      messages,
+      temperature: 0.2,
+      max_tokens: 1200,
+      provider: {
+        allow_fallbacks: true,
+        require_parameters: true,
+        sort: {
+          by: "throughput",
+          partition: "model",
+        },
       },
-    },
-    tools: useOfficialWebSearch
-      ? [
-          {
-            type: "openrouter:web_search",
-            parameters: {
-              engine: "exa",
-              max_results: 5,
-              max_total_results: 10,
-              search_context_size: "medium",
-              allowed_domains: officialJeeAdvancedDomains,
+      tools: useOfficialWebSearch
+        ? [
+            {
+              type: "openrouter:web_search",
+              parameters: {
+                engine: "exa",
+                max_results: 5,
+                max_total_results: 10,
+                search_context_size: "medium",
+                allowed_domains: officialJeeAdvancedDomains,
+              },
             },
-          },
-        ]
-      : undefined,
-  };
+          ]
+        : undefined,
+    };
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "X-Title": "Cutoff Lens",
-      ...(process.env.NEXT_PUBLIC_SITE_URL ? { "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL } : {}),
-    },
-    body: JSON.stringify(body),
-  });
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-Title": "Cutoff Lens",
+        ...(process.env.NEXT_PUBLIC_SITE_URL ? { "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL } : {}),
+      },
+      body: JSON.stringify(body),
+    });
 
-  const data = (await response.json().catch(() => null)) as OpenRouterResponse | null;
+    const data = (await response.json().catch(() => null)) as OpenRouterResponse | null;
 
-  if (!response.ok) {
+    if (!response.ok) {
+      lastError = {
+        ok: false as const,
+        status: response.status,
+        message: data?.error?.message ?? "AI request failed.",
+      };
+
+      if (response.status !== 408 && response.status !== 429 && response.status < 500) {
+        return lastError;
+      }
+
+      continue;
+    }
+
+    const answer = data?.choices?.[0]?.message?.content?.trim();
+
+    if (!answer) {
+      lastError = {
+        ok: false as const,
+        status: 502,
+        message: "AI returned an empty answer.",
+      };
+
+      continue;
+    }
+
+    const citations =
+      data?.choices?.[0]?.message?.annotations
+        ?.map((annotation) => annotation.url_citation)
+        .filter((citation): citation is { url: string; title?: string } => Boolean(citation?.url)) ?? [];
+
     return {
-      ok: false as const,
-      status: response.status,
-      message: data?.error?.message ?? "AI request failed.",
+      ok: true as const,
+      answer,
+      model: data?.model ?? "unknown",
+      citations,
     };
   }
 
-  const answer = data?.choices?.[0]?.message?.content?.trim();
-
-  if (!answer) {
-    return {
-      ok: false as const,
-      status: 502,
-      message: "AI returned an empty answer.",
-    };
-  }
-
-  const citations =
-    data?.choices?.[0]?.message?.annotations
-      ?.map((annotation) => annotation.url_citation)
-      .filter((citation): citation is { url: string; title?: string } => Boolean(citation?.url)) ?? [];
-
-  return {
-    ok: true as const,
-    answer,
-    model: data?.model ?? "unknown",
-    citations,
-  };
+  return lastError;
 }
