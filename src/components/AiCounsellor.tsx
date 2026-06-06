@@ -1,90 +1,26 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Bot, Loader2, Send, X } from "lucide-react";
-import type { CutoffResult, GenderFilter } from "@/lib/types";
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
 };
 
-type AiCounsellorProps = {
-  exam: "jee-advanced";
-  rank: string;
-  seatType: string;
-  gender: GenderFilter;
-  selectedInstitutes: string[];
-  selectedPrograms: string[];
-  selectedDegrees: string[];
-  selectedDurations: string[];
-  selectedProgramTypes: string[];
-  tableSearch: string;
-  matchingRows: CutoffResult[];
-};
-
 type AiChatResponse = {
   message?: string;
   error?: string;
   model?: string;
-  citations?: Array<{
-    url: string;
-    title?: string;
-  }>;
 };
 
-const promptChips = [
-  "Best picks for my IIT rank",
-  "Best IITs I can get",
-  "Best branches I can get",
-];
-
-export function AiCounsellor({
-  exam,
-  rank,
-  seatType,
-  gender,
-  selectedInstitutes,
-  selectedPrograms,
-  selectedDegrees,
-  selectedDurations,
-  selectedProgramTypes,
-  tableSearch,
-  matchingRows,
-}: AiCounsellorProps) {
+export function AiCounsellor() {
   const [isOpen, setIsOpen] = useState(false);
   const [bubbleVisible, setBubbleVisible] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  const pageState = useMemo(
-    () => ({
-      rank,
-      seatType,
-      gender,
-      selectedInstitutes,
-      selectedPrograms,
-      selectedDegrees,
-      selectedDurations,
-      selectedProgramTypes,
-      tableSearch,
-      visibleResultCount: matchingRows.length,
-    }),
-    [
-      gender,
-      matchingRows.length,
-      rank,
-      seatType,
-      selectedDegrees,
-      selectedDurations,
-      selectedInstitutes,
-      selectedProgramTypes,
-      selectedPrograms,
-      tableSearch,
-    ],
-  );
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -118,26 +54,14 @@ export function AiCounsellor({
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          exam,
-          pageState,
-          messages: nextMessages,
-        }),
+        body: JSON.stringify({ messages: nextMessages }),
       });
       const data = (await response.json().catch(() => null)) as AiChatResponse | null;
-      const citations = data?.citations ?? [];
-      const sourceText =
-        citations.length > 0
-          ? `\n\nSources:\n${citations
-              .slice(0, 4)
-              .map((citation) => `- ${citation.title ? `${citation.title}: ` : ""}${citation.url}`)
-              .join("\n")}`
-          : "";
-      const message = `${data?.message ?? data?.error ?? "Sorry, can't fetch that info."}${sourceText}`;
+      const message = data?.message ?? data?.error ?? "AI failed to respond.";
 
       setMessages([...nextMessages, { role: "assistant", content: message }]);
     } catch {
-      setMessages([...nextMessages, { role: "assistant", content: "Sorry, can't fetch that info." }]);
+      setMessages([...nextMessages, { role: "assistant", content: "AI failed to respond." }]);
     } finally {
       setLoading(false);
     }
@@ -151,11 +75,11 @@ export function AiCounsellor({
   return (
     <>
       {isOpen ? (
-        <section className="ai-chat-panel" aria-label="AI counsellor">
+        <section className="ai-chat-panel" aria-label="AI chat">
           <div className="ai-chat-head">
             <div>
               <b>Cutoff Lens AI</b>
-              <span>JEE Advanced</span>
+              <span>Chat</span>
             </div>
             <button className="ai-icon-button" type="button" aria-label="Close AI chat" onClick={() => setIsOpen(false)}>
               <X size={18} />
@@ -165,14 +89,7 @@ export function AiCounsellor({
           <div className="ai-chat-messages" ref={scrollRef}>
             {messages.length === 0 ? (
               <div className="ai-empty-state">
-                <p>Ask about your current options, or enter rank/category directly here.</p>
-                <div className="ai-starter-prompts">
-                  {promptChips.map((prompt) => (
-                    <button className="ai-starter-prompt" key={prompt} type="button" onClick={() => sendMessage(prompt)}>
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
+                <p>Ask anything.</p>
               </div>
             ) : null}
 

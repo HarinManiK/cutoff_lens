@@ -908,19 +908,7 @@ export function JeeAdvancedExplorer() {
         ) : null}
       </section>
 
-      <AiCounsellor
-        exam="jee-advanced"
-        rank={rank}
-        seatType={seatType}
-        gender={gender}
-        selectedInstitutes={selectedInstitutes}
-        selectedPrograms={selectedPrograms}
-        selectedDegrees={selectedDegrees}
-        selectedDurations={selectedDurations}
-        selectedProgramTypes={selectedProgramTypes}
-        tableSearch={tableSearch}
-        matchingRows={filteredRows}
-      />
+      <AiCounsellor />
     </main>
   );
 }
