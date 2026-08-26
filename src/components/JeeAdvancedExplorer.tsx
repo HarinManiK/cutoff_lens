@@ -22,7 +22,14 @@ import {
 import { cutoffMatchesSearch, programMatchesSearch } from "@/lib/search";
 import { LogoMark } from "@/components/LogoMark";
 import { branchGroups } from "@/lib/branch-groups";
-import type { ColumnKey, CutoffResult, CutoffsResponse, GenderFilter } from "@/lib/types";
+import type {
+  ColumnKey,
+  CutoffResult,
+  CutoffsResponse,
+  Dataset,
+  DatasetsResponse,
+  GenderFilter,
+} from "@/lib/types";
 
 type MultiFilterKey = "institute" | "program" | "degree" | "duration" | "programType";
 type PanelMultiFilter = "institute" | "program" | "degree" | "programType";
@@ -30,6 +37,9 @@ type QuickSelectGroup = {
   label: string;
   values: string[];
 };
+
+const DEFAULT_YEAR = 2025;
+const DEFAULT_ROUND = 5;
 
 const defaultColumns: ColumnKey[] = [
   "institute",
@@ -80,6 +90,41 @@ function multiSelectSummary(values: string[], renderOption: (option: string) => 
   if (values.length === 0) return "All";
   if (values.length === 1) return renderOption(values[0]);
   return `${values.length} selected`;
+}
+
+function LabeledChoice({
+  label,
+  value,
+  options,
+  onChange,
+  onOpen,
+  renderOption = (option) => option,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  onOpen?: () => void;
+  renderOption?: (option: string) => string;
+}) {
+  return (
+    <label className="filter-field">
+      <span>{label}</span>
+      <select
+        className="filter-select"
+        value={value}
+        onFocus={onOpen}
+        onPointerDown={onOpen}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {renderOption(option)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 function LabeledSelect({
@@ -368,8 +413,11 @@ function renderCell(row: CutoffResult, column: ColumnKey, rankNumber: number | n
 }
 
 export function JeeAdvancedExplorer() {
-  const year = "2025";
-  const round = "5";
+  const [datasets, setDatasets] = useState<Dataset[]>([
+    { year: DEFAULT_YEAR, round: DEFAULT_ROUND },
+  ]);
+  const [year, setYear] = useState(String(DEFAULT_YEAR));
+  const [round, setRound] = useState(String(DEFAULT_ROUND));
   const [seatType, setSeatType] = useState("OPEN");
   const [gender, setGender] = useState<GenderFilter>("Male");
   const [rank, setRank] = useState("");
@@ -394,6 +442,45 @@ export function JeeAdvancedExplorer() {
   const closeOpenPanels = useCallback(() => {
     setOpenMultiFilter(null);
   }, []);
+
+  const yearOptions = useMemo(() => {
+    return [...new Set(datasets.map((dataset) => dataset.year))].sort((a, b) => b - a).map(String);
+  }, [datasets]);
+
+  const roundOptions = useMemo(() => {
+    return datasets
+      .filter((dataset) => String(dataset.year) === year)
+      .map((dataset) => dataset.round)
+      .sort((a, b) => a - b)
+      .map(String);
+  }, [datasets, year]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/cutoffs/jee-advanced/datasets", { signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<DatasetsResponse>) : null))
+      .then((data) => {
+        if (data?.datasets?.length) setDatasets(data.datasets);
+      })
+      .catch(() => {
+        // Keep the default dataset when discovery fails; the cutoffs request reports the real error.
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  // Keep the selected year/round on a dataset that actually exists.
+  useEffect(() => {
+    if (yearOptions.length > 0 && !yearOptions.includes(year)) {
+      setYear(yearOptions[0]);
+      return;
+    }
+
+    if (roundOptions.length > 0 && !roundOptions.includes(round)) {
+      setRound(roundOptions[roundOptions.length - 1]);
+    }
+  }, [round, roundOptions, year, yearOptions]);
 
   const rankNumber = useMemo(() => {
     const trimmedRank = rank.trim();
@@ -602,7 +689,7 @@ export function JeeAdvancedExplorer() {
             <LogoMark className="logo-mark--page" />
             <h1 className="page-title">JEE Advanced</h1>
           </div>
-          <p className="page-kicker">based on 2025 official data (Round 5)</p>
+          <p className="page-kicker">based on {year} official data (Round {round})</p>
         </div>
       </header>
 
@@ -736,6 +823,8 @@ export function JeeAdvancedExplorer() {
               setRank("");
               setSeatType("OPEN");
               setGender("Male");
+              setYear(String(DEFAULT_YEAR));
+              setRound(String(DEFAULT_ROUND));
               clearSecondaryFilters();
               setShowMoreFilters(false);
             }}
@@ -746,6 +835,23 @@ export function JeeAdvancedExplorer() {
 
         {showMoreFilters ? (
           <div className="more-filters-panel">
+            <LabeledChoice
+              label="Year"
+              options={yearOptions}
+              value={year}
+              onOpen={closeOpenPanels}
+              onChange={setYear}
+            />
+
+            <LabeledChoice
+              label="Round"
+              options={roundOptions}
+              value={round}
+              renderOption={(option) => `Round ${option}`}
+              onOpen={closeOpenPanels}
+              onChange={setRound}
+            />
+
             <MultiSelectTrigger
               label="Degree"
               isOpen={openMultiFilter === "degree"}

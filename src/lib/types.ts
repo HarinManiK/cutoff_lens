@@ -1,5 +1,17 @@
 export type GenderFilter = "Male" | "Female";
 
+export type Dataset = {
+  year: number;
+  round: number;
+};
+
+export type DatasetsResponse = {
+  datasets: Dataset[];
+  meta: {
+    source: "supabase" | "local-csv";
+  };
+};
+
 export type CutoffResult = {
   id: string;
   year: number;
