@@ -426,17 +426,24 @@ button {
   padding-top: 10px;
 }
 
-/* Rows keep the grouping but each control takes the width it needs, rather than an
-   equal share of the row that leaves a short select stretched across half the panel. */
+/* Shared tracks across every row so the controls line up in columns. The boxes stay
+   content-sized; the slack sits in the track around them rather than inside them. */
 .more-filters-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, 365px);
+  justify-content: start;
   align-items: center;
   gap: 10px 18px;
 }
 
 .more-filters-row .filter-field {
   flex: 0 0 auto;
+  min-width: 0;
+}
+
+/* A uniform label column, so a short label like Year does not pull its control left. */
+.more-filters-row .filter-field > span {
+  min-width: 140px;
 }
 
 /* The trigger's label changes with the selection, so it gets a stable width and
@@ -1048,8 +1055,11 @@ button {
   }
 
   .more-filters-row {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .more-filters-row .filter-field > span {
+    min-width: 0;
   }
 
   .more-filters-row .multi-select-trigger,
