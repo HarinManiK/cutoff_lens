@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -438,6 +438,7 @@ export function JeeAdvancedExplorer() {
   const [degreeSearch, setDegreeSearch] = useState("");
   const [programTypeSearch, setProgramTypeSearch] = useState("");
   const [showFilterJump, setShowFilterJump] = useState(false);
+  const filterBarRef = useRef<HTMLElement | null>(null);
 
   const closeOpenPanels = useCallback(() => {
     setOpenMultiFilter(null);
@@ -642,6 +643,38 @@ export function JeeAdvancedExplorer() {
     }
   }, [programTypeOptions, selectedProgramTypes]);
 
+  // The sticky table header offsets by the filter bar's height, and that height moves:
+  // More filters opens, the window narrows and fields wrap, a row is added. A hardcoded
+  // value goes stale and rows scroll through the gap behind the header.
+  const syncFilterHeight = useCallback(() => {
+    const filterBar = filterBarRef.current;
+    if (!filterBar) return;
+
+    // On mobile the bar is static and scrolls away, so the header sticks to the top.
+    const isSticky = window.getComputedStyle(filterBar).position === "sticky";
+    const height = isSticky ? Math.round(filterBar.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--filter-height", `${height}px`);
+  }, []);
+
+  // Driven by the state that resizes the bar, so this does not rely on ResizeObserver.
+  useEffect(() => {
+    syncFilterHeight();
+  }, [showMoreFilters, syncFilterHeight, visibleColumns, yearOptions, roundOptions]);
+
+  // Covers what state cannot predict: window resizes that rewrap fields, fonts landing.
+  useEffect(() => {
+    window.addEventListener("resize", syncFilterHeight);
+
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => syncFilterHeight());
+    if (observer && filterBarRef.current) observer.observe(filterBarRef.current);
+
+    return () => {
+      window.removeEventListener("resize", syncFilterHeight);
+      observer?.disconnect();
+    };
+  }, [syncFilterHeight]);
+
   useEffect(() => {
     function updateFilterJumpVisibility() {
       const filterBar = document.getElementById("jee-advanced-filters");
@@ -703,6 +736,7 @@ export function JeeAdvancedExplorer() {
       <section
         className="filter-bar"
         id="jee-advanced-filters"
+        ref={filterBarRef}
         aria-label="Filters"
       >
         <div className="filter-strip">
