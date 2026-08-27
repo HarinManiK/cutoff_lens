@@ -1027,40 +1027,57 @@ button {
     backdrop-filter: none;
   }
 
+  /* Same idea as desktop, narrower column: one label width for every filter, so the
+     controls share a left edge instead of each starting wherever its label ended.
+     Stacking labels above would align them too, but costs ~70px of vertical space. */
   .filter-strip__fields {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    align-items: start;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
-  .filter-field {
+  .filter-field,
+  .filter-strip__fields .filter-field,
+  .more-filters-row .filter-field {
+    display: grid;
+    grid-template-columns: 95px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
     min-width: 0;
   }
 
-  .filter-field--range,
-  .filter-field--category {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+  .filter-strip__fields .filter-field > span,
+  .more-filters-row .filter-field > span {
+    min-width: 0;
+    padding-top: 0;
   }
 
-  .filter-field--category .filter-select,
-  .filter-field--gender .filter-select {
+  .filter-strip__fields .filter-select,
+  .filter-strip__fields .filter-input,
+  .more-filters-row .filter-select,
+  .more-filters-row .multi-select-trigger {
     width: 100%;
-    flex: 1 1 auto;
   }
 
-  .filter-field--range {
-    grid-column: 1;
+  /* A rank is a handful of digits; a full-width box for it just looks lost. Selector is
+     deliberately specific - the full-width rule above matches it too. */
+  .filter-strip__fields .filter-input.filter-input--rank {
+    width: 140px;
+    padding-inline: 12px;
   }
 
-  /* Sharing a row with Rank left too little width and clipped "OBC-NCL (PwD)". */
-  .filter-field--category {
-    grid-column: 1 / -1;
+  /* Thumb-sized. Both Apple and Material ask for 44px; these were 38, the column
+     toggles 34, and the search field 24 inside a 40px box. */
+  .filter-chip,
+  .filter-select,
+  .filter-input,
+  .multi-select-trigger,
+  .column-toggle {
+    min-height: 44px;
   }
 
-  .filter-field--gender,
-  .filter-field--multi {
-    grid-column: 1 / -1;
+  .search-box {
+    min-height: 44px;
   }
 
   .more-filters-row {
