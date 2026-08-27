@@ -329,8 +329,18 @@ button {
   gap: 8px;
 }
 
+/* Category and Gender hold short, fixed option lists, so they size to their content
+   instead of growing into whatever space the row has left. */
+.filter-field--category,
 .filter-field--gender {
-  flex-basis: 238px;
+  flex: 0 0 auto;
+}
+
+.filter-field--category .filter-select,
+.filter-field--gender .filter-select {
+  width: auto;
+  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .filter-field--gender
@@ -387,7 +397,7 @@ button {
 }
 
 .filter-input--rank {
-  width: 82px;
+  width: 120px;
 }
 
 .column-toggle {
@@ -1008,12 +1018,19 @@ button {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
+  .filter-field--category .filter-select,
+  .filter-field--gender .filter-select {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
   .filter-field--range {
     grid-column: 1;
   }
 
+  /* Sharing a row with Rank left too little width and clipped "OBC-NCL (PwD)". */
   .filter-field--category {
-    grid-column: 2;
+    grid-column: 1 / -1;
   }
 
   .filter-field--gender,
