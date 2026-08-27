@@ -665,6 +665,13 @@ export function JeeAdvancedExplorer() {
     };
   }, []);
 
+  const activeFilterCount =
+    selectedInstitutes.length +
+    selectedPrograms.length +
+    selectedDegrees.length +
+    selectedDurations.length +
+    selectedProgramTypes.length;
+
   const filteredRows = useMemo(() => {
     const nextRows = rows
       .filter((row) => rowMatchesSelections(row))
@@ -699,7 +706,8 @@ export function JeeAdvancedExplorer() {
         aria-label="Filters"
       >
         <div className="filter-strip">
-          <div className="filter-field filter-field--range">
+          <div className="filter-strip__fields">
+            <div className="filter-field filter-field--range">
             <span>Rank</span>
             <input
               className="filter-input filter-input--rank"
@@ -749,34 +757,45 @@ export function JeeAdvancedExplorer() {
             </select>
           </label>
 
-          <button
-            className={showMoreFilters ? "filter-chip is-active" : "filter-chip"}
-            type="button"
-            aria-expanded={showMoreFilters}
-            onClick={() => {
-              setOpenMultiFilter(null);
-              setShowMoreFilters((value) => !value);
-            }}
-          >
-            <SlidersHorizontal size={15} />
-            More filters
-          </button>
+          </div>
 
-          <button
-            className="filter-chip"
-            type="button"
-            onClick={() => {
-              setRank("");
-              setSeatType("OPEN");
-              setGender("Male");
-              setYear(String(DEFAULT_YEAR));
-              setRound(String(DEFAULT_ROUND));
-              clearSecondaryFilters();
-              setShowMoreFilters(false);
-            }}
-          >
-            Reset
-          </button>
+          <div className="filter-strip__actions">
+            <button
+              className={
+                showMoreFilters
+                  ? "filter-chip filter-chip--more is-active"
+                  : "filter-chip filter-chip--more"
+              }
+              type="button"
+              aria-expanded={showMoreFilters}
+              onClick={() => {
+                setOpenMultiFilter(null);
+                setShowMoreFilters((value) => !value);
+              }}
+            >
+              <SlidersHorizontal size={15} />
+              More filters
+              {activeFilterCount > 0 ? (
+                <span className="filter-chip__count">{activeFilterCount}</span>
+              ) : null}
+            </button>
+
+            <button
+              className="filter-chip"
+              type="button"
+              onClick={() => {
+                setRank("");
+                setSeatType("OPEN");
+                setGender("Male");
+                setYear(String(DEFAULT_YEAR));
+                setRound(String(DEFAULT_ROUND));
+                clearSecondaryFilters();
+                setShowMoreFilters(false);
+              }}
+            >
+              Reset
+            </button>
+          </div>
         </div>
 
         {showMoreFilters ? (

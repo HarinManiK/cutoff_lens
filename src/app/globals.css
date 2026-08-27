@@ -202,43 +202,26 @@ button {
 
 .filter-strip {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px 10px;
+  flex-direction: column;
+  gap: 10px;
   overflow: visible;
   padding: 2px 0 8px;
 }
 
-.filter-field {
-  display: inline-flex;
-  flex: 1 1 168px;
+.filter-strip__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 10px;
+}
+
+.filter-strip__actions {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 38px;
-  white-space: nowrap;
-}
-
-.filter-field > span {
-  color: #4d5e55;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.filter-field > span::after {
-  content: ":";
-}
-
-.filter-field--range {
-  flex: 0 0 auto;
   gap: 8px;
 }
 
-.filter-field--gender {
-  flex-basis: 238px;
-}
-
-.filter-field--gender .filter-select {
+.filter-select {
   min-width: 178px;
 }
 
@@ -284,6 +267,74 @@ button {
   background: var(--mint);
   color: var(--moss);
 }
+
+/* Institution and Branch live behind this button now, so it has to look like a door. */
+.filter-chip--more {
+  border-color: rgba(37, 89, 71, 0.4);
+  background: var(--mint);
+  color: var(--moss);
+  font-weight: 700;
+}
+
+.filter-chip--more:hover {
+  border-color: rgba(37, 89, 71, 0.6);
+}
+
+.filter-chip--more.is-active {
+  border-color: var(--moss);
+  background: var(--moss);
+  color: #ffffff;
+}
+
+.filter-chip__count {
+  display: inline-flex;
+  min-width: 19px;
+  height: 19px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--moss);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.filter-chip--more.is-active .filter-chip__count {
+  background: #ffffff;
+  color: var(--moss);
+}
+
+.filter-field {
+  display: inline-flex;
+  flex: 1 1 168px;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.filter-field > span {
+  color: #4d5e55;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.filter-field > span::after {
+  content: ":";
+}
+
+.filter-field--range {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.filter-field--gender {
+  flex-basis: 238px;
+}
+
+.filter-field--gender
+
 
 .multi-select-trigger {
   display: inline-flex;
@@ -940,7 +991,7 @@ button {
     backdrop-filter: none;
   }
 
-  .filter-strip {
+  .filter-strip__fields {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);
     align-items: start;
