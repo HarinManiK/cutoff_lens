@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compareCutoffByInstituteAndProgram, toJosaaGender } from "@/lib/display";
+import { listJeeAdvancedDatasets } from "@/lib/datasets";
 import { loadLocalJeeAdvancedCutoffs } from "@/lib/local-cutoffs";
-import { fetchAllRows } from "@/lib/supabase-rows";
+import { buildOutlook, finalRoundByYear } from "@/lib/outlook";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { fetchAllRows } from "@/lib/supabase-rows";
 import type { CutoffResult, GenderFilter } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -23,13 +25,7 @@ type SupabaseCutoffRow = {
   is_preparatory: boolean;
 };
 
-function parseNumberParam(value: string | null, fallback: number) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function parseRank(value: string | null) {
-  if (!value) return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
@@ -56,52 +52,42 @@ function toResult(row: SupabaseCutoffRow): CutoffResult {
   };
 }
 
-function filterRows(
-  rows: CutoffResult[],
-  year: number,
-  round: number,
-  seatType: string,
-  gender: string,
-  rank: number | null,
-) {
-  return rows
-    .filter((row) => row.year === year)
-    .filter((row) => row.round === round)
-    .filter((row) => row.seatType === seatType)
-    .filter((row) => row.gender === gender)
-    .filter((row) => !row.isPreparatory)
-    .filter((row) => (rank ? row.closingRankNumber >= rank : true))
-    .sort(compareCutoffByInstituteAndProgram);
-}
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const year = parseNumberParam(searchParams.get("year"), 2025);
-  const round = parseNumberParam(searchParams.get("round"), 5);
+  const rank = parseRank(searchParams.get("rank"));
   const seatType = searchParams.get("seatType") ?? "OPEN";
   const gender = parseGender(searchParams.get("gender"));
   const josaaGender = toJosaaGender(gender);
-  const rank = parseRank(searchParams.get("rank"));
+
+  if (!rank) {
+    return NextResponse.json({ error: "A rank is required to judge chances." }, { status: 400 });
+  }
+
+  // Only final-round rows are ever used, and PostgREST caps responses at 1000 rows, so
+  // ask for exactly those rather than pulling every round and filtering afterwards.
+  const { datasets, source } = await listJeeAdvancedDatasets();
+  const finalRound = finalRoundByYear(datasets);
   const supabase = createServerSupabaseClient();
+  let rows: CutoffResult[];
 
   if (supabase) {
-    const buildQuery = () => {
-      const query = supabase
+    const yearRoundFilter = [...finalRound]
+      .map(([year, round]) => `and(year.eq.${year},round.eq.${round})`)
+      .join(",");
+
+    const buildQuery = () =>
+      supabase
         .from("cutoff_results")
         .select(
           "id, year, round, institute, program, quota, seat_type, gender, opening_rank_raw, closing_rank_raw, opening_rank_number, closing_rank_number, is_preparatory",
         )
         .eq("exam_slug", "jee-advanced")
-        .eq("year", year)
-        .eq("round", round)
         .eq("seat_type", seatType)
         .eq("gender", josaaGender)
         .eq("is_preparatory", false)
+        .or(yearRoundFilter)
         .order("institute", { ascending: true })
         .order("program", { ascending: true });
-
-      return rank ? query.gte("closing_rank_number", rank) : query;
-    };
 
     let data: SupabaseCutoffRow[];
 
@@ -114,35 +100,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rows = data.map(toResult).sort(compareCutoffByInstituteAndProgram);
-
-    return NextResponse.json({
-      rows,
-      meta: {
-        source: "supabase",
-        year,
-        round,
-        seatType,
-        gender,
-        rank,
-        total: rows.length,
-      },
-    });
+    rows = data.map(toResult);
+  } else {
+    const localRows = await loadLocalJeeAdvancedCutoffs();
+    rows = localRows
+      .filter((row) => row.seatType === seatType)
+      .filter((row) => row.gender === josaaGender)
+      .filter((row) => !row.isPreparatory)
+      .filter((row) => finalRound.get(row.year) === row.round);
   }
 
-  const localRows = await loadLocalJeeAdvancedCutoffs();
-  const rows = filterRows(localRows, year, round, seatType, josaaGender, rank);
+  const outlook = buildOutlook(rows, rank).sort((a, b) =>
+    compareCutoffByInstituteAndProgram(
+      { institute: a.institute, program: a.program, closingRankNumber: a.loosestClosing },
+      { institute: b.institute, program: b.program, closingRankNumber: b.loosestClosing },
+    ),
+  );
+
+  const years = [...finalRound.keys()].sort((a, b) => a - b);
 
   return NextResponse.json({
-    rows,
+    rows: outlook,
     meta: {
-      source: "local-csv",
-      year,
-      round,
+      source,
+      rank,
       seatType,
       gender,
-      rank,
-      total: rows.length,
+      years,
+      total: outlook.length,
+      safe: outlook.filter((row) => row.verdict === "safe").length,
+      likely: outlook.filter((row) => row.verdict === "likely").length,
+      reach: outlook.filter((row) => row.verdict === "reach").length,
     },
   });
 }

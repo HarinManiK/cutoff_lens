@@ -85,6 +85,10 @@ official JoSAA headers: `Institute`, `Academic Program Name`, `Quota`, `Seat Typ
   new exam inherits this, since default privileges are revoked too. The advisor's five
   "RLS enabled, no policy" INFO notices are the intended posture, not a finding — but
   re-run `get_advisors` after any DDL, since a new SECURITY DEFINER view would reopen it.
+- **PostgREST silently caps responses at 1000 rows**, overriding any higher `.limit()`. A
+  truncated result is indistinguishable from a complete one, and for cutoff data that means
+  answering confidently from half the evidence. Read multi-row Supabase results through
+  `fetchAllRows()` in `src/lib/supabase-rows.ts` rather than a bare `.limit()`.
 - CSVs are read via a path built at runtime, which Next's tracing cannot see.
   `outputFileTracingIncludes` in `next.config.ts` keeps them in the serverless bundle;
   removing it silently breaks production while dev keeps working.

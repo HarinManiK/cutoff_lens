@@ -21,6 +21,7 @@ import {
 } from "@/lib/display";
 import { cutoffMatchesSearch, programMatchesSearch } from "@/lib/search";
 import { LogoMark } from "@/components/LogoMark";
+import { ChancesPanel } from "@/components/ChancesPanel";
 import { branchGroups } from "@/lib/branch-groups";
 import type {
   ColumnKey,
@@ -438,6 +439,7 @@ export function JeeAdvancedExplorer() {
   const [degreeSearch, setDegreeSearch] = useState("");
   const [programTypeSearch, setProgramTypeSearch] = useState("");
   const [showFilterJump, setShowFilterJump] = useState(false);
+  const [view, setView] = useState<"results" | "chances">("results");
 
   const closeOpenPanels = useCallback(() => {
     setOpenMultiFilter(null);
@@ -911,9 +913,30 @@ export function JeeAdvancedExplorer() {
 
         <div className="filter-meta">
           <span>
-            {loading ? "Loading" : `${filteredRows.length.toLocaleString("en-IN")} results`}
+            {view === "chances"
+              ? `Chances across ${yearOptions.length} year${yearOptions.length === 1 ? "" : "s"}`
+              : loading
+                ? "Loading"
+                : `${filteredRows.length.toLocaleString("en-IN")} results`}
             {enteredRankNumber ? ` - rank ${formatRank(enteredRankNumber)}` : ""}
           </span>
+
+          <div className="view-toggle" role="group" aria-label="View">
+            <button
+              className={view === "results" ? "is-active" : ""}
+              type="button"
+              onClick={() => setView("results")}
+            >
+              Results
+            </button>
+            <button
+              className={view === "chances" ? "is-active" : ""}
+              type="button"
+              onClick={() => setView("chances")}
+            >
+              Chances
+            </button>
+          </div>
         </div>
 
         <div className="filter-search-row">
@@ -946,71 +969,82 @@ export function JeeAdvancedExplorer() {
       ) : null}
 
       <section className="results-shell">
-        {error ? <div className="empty-state">{error}</div> : null}
-
-        {!error && loading ? (
-          <div className="empty-state">
-            <Loader2 className="inline animate-spin" size={18} /> Loading
-          </div>
-        ) : null}
-
-        {!error && !loading && filteredRows.length === 0 ? (
-          <div className="empty-state">No matching cutoffs</div>
-        ) : null}
-
-        {!error && !loading && filteredRows.length > 0 ? (
+        {view === "chances" ? (
+          <ChancesPanel
+            gender={gender}
+            rank={enteredRankNumber}
+            search={tableSearch}
+            seatType={seatType}
+          />
+        ) : (
           <>
-            <div className="table-wrap">
-              <table className="results-table">
-                <thead>
-                  <tr>
-                    {visibleColumns.map((column) => (
-                      <th className={`col-${column}`} key={column}>
-                        {columnLabels[column]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row) => (
-                    <tr key={row.id}>
+          {error ? <div className="empty-state">{error}</div> : null}
+
+          {!error && loading ? (
+            <div className="empty-state">
+              <Loader2 className="inline animate-spin" size={18} /> Loading
+            </div>
+          ) : null}
+
+          {!error && !loading && filteredRows.length === 0 ? (
+            <div className="empty-state">No matching cutoffs</div>
+          ) : null}
+
+          {!error && !loading && filteredRows.length > 0 ? (
+            <>
+              <div className="table-wrap">
+                <table className="results-table">
+                  <thead>
+                    <tr>
                       {visibleColumns.map((column) => (
-                        <td className={`col-${column}`} key={column}>
-                          {renderCell(row, column, enteredRankNumber)}
-                        </td>
+                        <th className={`col-${column}`} key={column}>
+                          {columnLabels[column]}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map((row) => (
+                      <tr key={row.id}>
+                        {visibleColumns.map((column) => (
+                          <td className={`col-${column}`} key={column}>
+                            {renderCell(row, column, enteredRankNumber)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-            <div className="mobile-results">
-              {filteredRows.map((row) => (
-                <article className="result-card" key={row.id}>
-                  <div className="result-card__head">
-                    <div>
-                      <h3>{shortenInstituteName(row.institute)}</h3>
-                      <p>{programShortName(row.program)}</p>
+              <div className="mobile-results">
+                {filteredRows.map((row) => (
+                  <article className="result-card" key={row.id}>
+                    <div className="result-card__head">
+                      <div>
+                        <h3>{shortenInstituteName(row.institute)}</h3>
+                        <p>{programShortName(row.program)}</p>
+                      </div>
+                      <span className="rank-badge">{formatRank(row.closingRankRaw)}</span>
                     </div>
-                    <span className="rank-badge">{formatRank(row.closingRankRaw)}</span>
-                  </div>
 
-                  <div className="card-fields">
-                    {visibleColumns
-                      .filter((column) => column !== "institute" && column !== "program")
-                      .map((column) => (
-                        <span className="card-field" key={column}>
-                          <span>{columnLabels[column]}</span>
-                          <b>{renderCell(row, column, enteredRankNumber)}</b>
-                        </span>
-                      ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </>
-        ) : null}
+                    <div className="card-fields">
+                      {visibleColumns
+                        .filter((column) => column !== "institute" && column !== "program")
+                        .map((column) => (
+                          <span className="card-field" key={column}>
+                            <span>{columnLabels[column]}</span>
+                            <b>{renderCell(row, column, enteredRankNumber)}</b>
+                          </span>
+                        ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </>
+        )}
       </section>
     </main>
   );
