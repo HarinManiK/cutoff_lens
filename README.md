@@ -6,7 +6,7 @@ Counselling cutoff explorer for Indian entrance exams.
 
 - JEE Advanced
 - IIT cutoffs only
-- Every JoSAA round present in `data/` (see below); the explorer defaults to 2025 Round 5
+- Every JoSAA round present in `data/` (see below); the explorer defaults to 2026 Round 5
 - Preparatory-rank rows are stored by the importer but hidden from user-facing results
 
 ## Adding a Counselling Round

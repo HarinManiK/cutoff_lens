@@ -105,5 +105,5 @@ git show 1ff1212:src/lib/ai/jee-advanced.ts   # context builder + prompt
 git show b1934a8:src/app/api/ai/chat/route.ts # how it was wired, with citations
 ```
 
-When it returns it must respect the selected year/round rather than assuming 2025 Round 5,
+When it returns it must respect the selected year/round rather than assuming a fixed round,
 and must never answer eligibility questions from model memory.

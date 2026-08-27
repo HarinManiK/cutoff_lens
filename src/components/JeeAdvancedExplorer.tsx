@@ -38,7 +38,7 @@ type QuickSelectGroup = {
   values: string[];
 };
 
-const DEFAULT_YEAR = 2025;
+const DEFAULT_YEAR = 2026;
 const DEFAULT_ROUND = 5;
 
 const defaultColumns: ColumnKey[] = [

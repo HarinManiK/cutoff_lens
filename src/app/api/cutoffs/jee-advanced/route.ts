@@ -76,7 +76,7 @@ function filterRows(
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const year = parseNumberParam(searchParams.get("year"), 2025);
+  const year = parseNumberParam(searchParams.get("year"), 2026);
   const round = parseNumberParam(searchParams.get("round"), 5);
   const seatType = searchParams.get("seatType") ?? "OPEN";
   const gender = parseGender(searchParams.get("gender"));
