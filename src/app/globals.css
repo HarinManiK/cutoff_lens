@@ -357,12 +357,25 @@ button {
 }
 
 .more-filters-panel {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
-  gap: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-top: 8px;
   border-top: 1px solid rgba(31, 41, 35, 0.1);
   padding-top: 10px;
+}
+
+.more-filters-row {
+  display: grid;
+  gap: 10px;
+}
+
+.more-filters-row--pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.more-filters-row--triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .more-filters-panel .filter-field {
@@ -370,7 +383,7 @@ button {
 }
 
 .more-filters-panel .filter-field--columns {
-  grid-column: 1 / -1;
+  flex: 1 1 auto;
 }
 
 .multi-filter-panel {
@@ -950,7 +963,9 @@ button {
     grid-column: 1 / -1;
   }
 
-  .more-filters-panel {
+  .more-filters-row,
+  .more-filters-row--pair,
+  .more-filters-row--triple {
     grid-template-columns: 1fr;
   }
 

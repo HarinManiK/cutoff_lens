@@ -749,60 +749,6 @@ export function JeeAdvancedExplorer() {
             </select>
           </label>
 
-          <MultiSelectTrigger
-            label="Institution"
-            renderOption={shortenInstituteName}
-            isOpen={openMultiFilter === "institute"}
-            selectedValues={selectedInstitutes}
-            onToggle={() => {
-              setShowMoreFilters(false);
-              setOpenMultiFilter((value) => (value === "institute" ? null : "institute"));
-            }}
-          >
-            {openMultiFilter === "institute" ? (
-              <MultiSelectPanel
-                title="Institution"
-                options={instituteOptions}
-                renderOption={shortenInstituteName}
-                searchValue={instituteSearch}
-                selectedValues={selectedInstitutes}
-                onChange={setSelectedInstitutes}
-                onClose={() => setOpenMultiFilter(null)}
-                onSave={() => setOpenMultiFilter(null)}
-                onSearchChange={setInstituteSearch}
-              />
-            ) : null}
-          </MultiSelectTrigger>
-
-          <MultiSelectTrigger
-            label="Branch"
-            renderOption={programShortName}
-            isOpen={openMultiFilter === "program"}
-            selectedValues={selectedPrograms}
-            onToggle={() => {
-              setShowMoreFilters(false);
-              setOpenMultiFilter((value) => (value === "program" ? null : "program"));
-            }}
-          >
-            {openMultiFilter === "program" ? (
-              <MultiSelectPanel
-                title="Branch"
-                options={programOptions}
-                matchesSearch={programMatchesSearch}
-                renderOption={programShortName}
-                quickSelectGroups={programQuickSelectGroups}
-                listLayout
-                searchValue={programSearch}
-                selectedValues={selectedPrograms}
-                onChange={setSelectedPrograms}
-                align="right"
-                onClose={() => setOpenMultiFilter(null)}
-                onSave={() => setOpenMultiFilter(null)}
-                onSearchChange={setProgramSearch}
-              />
-            ) : null}
-          </MultiSelectTrigger>
-
           <button
             className={showMoreFilters ? "filter-chip is-active" : "filter-chip"}
             type="button"
@@ -835,77 +781,137 @@ export function JeeAdvancedExplorer() {
 
         {showMoreFilters ? (
           <div className="more-filters-panel">
-            <LabeledChoice
-              label="Year"
-              options={yearOptions}
-              value={year}
-              onOpen={closeOpenPanels}
-              onChange={setYear}
-            />
+            <div className="more-filters-row more-filters-row--pair">
+              <MultiSelectTrigger
+                label="Institution"
+                renderOption={shortenInstituteName}
+                isOpen={openMultiFilter === "institute"}
+                selectedValues={selectedInstitutes}
+                onToggle={() => {
+                  setOpenMultiFilter((value) => (value === "institute" ? null : "institute"));
+                }}
+              >
+                {openMultiFilter === "institute" ? (
+                  <MultiSelectPanel
+                    title="Institution"
+                    options={instituteOptions}
+                    renderOption={shortenInstituteName}
+                    searchValue={instituteSearch}
+                    selectedValues={selectedInstitutes}
+                    onChange={setSelectedInstitutes}
+                    onClose={() => setOpenMultiFilter(null)}
+                    onSave={() => setOpenMultiFilter(null)}
+                    onSearchChange={setInstituteSearch}
+                  />
+                ) : null}
+              </MultiSelectTrigger>
 
-            <LabeledChoice
-              label="Round"
-              options={roundOptions}
-              value={round}
-              renderOption={(option) => `Round ${option}`}
-              onOpen={closeOpenPanels}
-              onChange={setRound}
-            />
+              <MultiSelectTrigger
+                label="Branch"
+                renderOption={programShortName}
+                isOpen={openMultiFilter === "program"}
+                selectedValues={selectedPrograms}
+                onToggle={() => {
+                  setOpenMultiFilter((value) => (value === "program" ? null : "program"));
+                }}
+              >
+                {openMultiFilter === "program" ? (
+                  <MultiSelectPanel
+                    title="Branch"
+                    options={programOptions}
+                    matchesSearch={programMatchesSearch}
+                    renderOption={programShortName}
+                    quickSelectGroups={programQuickSelectGroups}
+                    listLayout
+                    align="right"
+                    searchValue={programSearch}
+                    selectedValues={selectedPrograms}
+                    onChange={setSelectedPrograms}
+                    onClose={() => setOpenMultiFilter(null)}
+                    onSave={() => setOpenMultiFilter(null)}
+                    onSearchChange={setProgramSearch}
+                  />
+                ) : null}
+              </MultiSelectTrigger>
+            </div>
 
-            <MultiSelectTrigger
-              label="Degree"
-              isOpen={openMultiFilter === "degree"}
-              selectedValues={selectedDegrees}
-              onToggle={() => {
-                setOpenMultiFilter((value) => (value === "degree" ? null : "degree"));
-              }}
-            >
-              {openMultiFilter === "degree" ? (
-                <MultiSelectPanel
-                  title="Degree"
-                  options={degreeOptions}
-                  searchValue={degreeSearch}
-                  selectedValues={selectedDegrees}
-                  onChange={setSelectedDegrees}
-                  onClose={() => setOpenMultiFilter(null)}
-                  onSave={() => setOpenMultiFilter(null)}
-                  onSearchChange={setDegreeSearch}
-                />
-              ) : null}
-            </MultiSelectTrigger>
+            <div className="more-filters-row more-filters-row--pair">
+              <LabeledChoice
+                label="Year"
+                options={yearOptions}
+                value={year}
+                onOpen={closeOpenPanels}
+                onChange={setYear}
+              />
 
-            <LabeledSelect
-              label="Course Duration"
-              options={durationOptions}
-              value={selectedDurations[0] ?? ""}
-              onOpen={closeOpenPanels}
-              onChange={(value) => setSelectedDurations(value ? [value] : [])}
-            />
+              <LabeledChoice
+                label="Round"
+                options={roundOptions}
+                value={round}
+                renderOption={(option) => `Round ${option}`}
+                onOpen={closeOpenPanels}
+                onChange={setRound}
+              />
+            </div>
 
-            <MultiSelectTrigger
-              label="Course Type"
-              isOpen={openMultiFilter === "programType"}
-              selectedValues={selectedProgramTypes}
-              onToggle={() => {
-                setOpenMultiFilter((value) => (value === "programType" ? null : "programType"));
-              }}
-            >
-              {openMultiFilter === "programType" ? (
-                <MultiSelectPanel
-                  title="Course Type"
-                  options={programTypeOptions}
-                  searchValue={programTypeSearch}
-                  selectedValues={selectedProgramTypes}
-                  onChange={setSelectedProgramTypes}
-                  align="right"
-                  onClose={() => setOpenMultiFilter(null)}
-                  onSave={() => setOpenMultiFilter(null)}
-                  onSearchChange={setProgramTypeSearch}
-                />
-              ) : null}
-            </MultiSelectTrigger>
+            <div className="more-filters-row more-filters-row--triple">
+              <MultiSelectTrigger
+                label="Degree"
+                isOpen={openMultiFilter === "degree"}
+                selectedValues={selectedDegrees}
+                onToggle={() => {
+                  setOpenMultiFilter((value) => (value === "degree" ? null : "degree"));
+                }}
+              >
+                {openMultiFilter === "degree" ? (
+                  <MultiSelectPanel
+                    title="Degree"
+                    options={degreeOptions}
+                    searchValue={degreeSearch}
+                    selectedValues={selectedDegrees}
+                    onChange={setSelectedDegrees}
+                    onClose={() => setOpenMultiFilter(null)}
+                    onSave={() => setOpenMultiFilter(null)}
+                    onSearchChange={setDegreeSearch}
+                  />
+                ) : null}
+              </MultiSelectTrigger>
 
-            <ColumnToggles visibleColumns={visibleColumns} onChange={setVisibleColumns} />
+              <MultiSelectTrigger
+                label="Course Type"
+                isOpen={openMultiFilter === "programType"}
+                selectedValues={selectedProgramTypes}
+                onToggle={() => {
+                  setOpenMultiFilter((value) => (value === "programType" ? null : "programType"));
+                }}
+              >
+                {openMultiFilter === "programType" ? (
+                  <MultiSelectPanel
+                    title="Course Type"
+                    options={programTypeOptions}
+                    searchValue={programTypeSearch}
+                    selectedValues={selectedProgramTypes}
+                    onChange={setSelectedProgramTypes}
+                    align="right"
+                    onClose={() => setOpenMultiFilter(null)}
+                    onSave={() => setOpenMultiFilter(null)}
+                    onSearchChange={setProgramTypeSearch}
+                  />
+                ) : null}
+              </MultiSelectTrigger>
+
+              <LabeledSelect
+                label="Course Duration"
+                options={durationOptions}
+                value={selectedDurations[0] ?? ""}
+                onOpen={closeOpenPanels}
+                onChange={(value) => setSelectedDurations(value ? [value] : [])}
+              />
+            </div>
+
+            <div className="more-filters-row">
+              <ColumnToggles visibleColumns={visibleColumns} onChange={setVisibleColumns} />
+            </div>
           </div>
         ) : null}
 
