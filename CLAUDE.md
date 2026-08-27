@@ -79,6 +79,12 @@ official JoSAA headers: `Institute`, `Academic Program Name`, `Quota`, `Seat Typ
 - `@/*` maps to `src/*`.
 - Server-only secrets must never be prefixed `NEXT_PUBLIC_`. The service-role key bypasses
   all RLS — `.env.local` and deployment env only, never committed.
+- The database is deny-by-default: RLS is on with no policies, `anon` and `authenticated`
+  hold no grants, and `cutoff_results` is `security_invoker = on` so it cannot be used to
+  read around RLS. Every read is server-side via the service-role key. Adding a table for a
+  new exam inherits this, since default privileges are revoked too. The advisor's five
+  "RLS enabled, no policy" INFO notices are the intended posture, not a finding — but
+  re-run `get_advisors` after any DDL, since a new SECURITY DEFINER view would reopen it.
 - CSVs are read via a path built at runtime, which Next's tracing cannot see.
   `outputFileTracingIncludes` in `next.config.ts` keeps them in the serverless bundle;
   removing it silently breaks production while dev keeps working.
