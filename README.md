@@ -51,7 +51,17 @@ SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 5. Import the official CSV:
 
 ```bash
-npm run import:jee-advanced:2025:r5
+npm run import:jee-advanced
 ```
+
+With no arguments the importer picks up every matching CSV in `data/`, reading the year,
+round and institute type from each filename. Pass explicit paths to import a subset:
+
+```bash
+npm run import:jee-advanced -- data/jee_advanced_2025_round_6_IITs.csv
+```
+
+Each file is hashed, so re-running the importer skips anything already loaded rather than
+duplicating it.
 
 The importer stores raw rank strings and derived numeric rank fields. Rows with a `P` suffix are marked as preparatory and are not shown in the public explorer.

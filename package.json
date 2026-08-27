@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "import:jee-advanced:2025:r5": "tsx scripts/import-cutoffs.ts data/jee_advanced_2025_round_5_IITs.csv --exam=jee-advanced --exam-name=\"JEE Advanced\" --year=2025 --round=5 --institute-type=IIT"
+    "import:jee-advanced": "tsx scripts/import-cutoffs.ts"
   },
   "keywords": [
     "jee",
