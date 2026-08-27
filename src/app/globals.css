@@ -343,11 +343,11 @@ button {
   flex: 0 0 auto;
 }
 
-.filter-field--gender
-
-
 .multi-select-trigger {
   display: inline-flex;
+  /* Matches .filter-select. Without flex-grow the trigger never fills its field and
+     collapses to about the width of its chevron. */
+  flex: 1 1 auto;
   width: 100%;
   min-width: 0;
   min-height: 38px;
