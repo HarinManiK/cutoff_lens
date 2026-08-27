@@ -711,6 +711,11 @@ button {
   line-height: 1.35;
 }
 
+/* Banding the rows keeps the eye on one institute while reading across to the ranks. */
+.results-table tbody tr:nth-child(even) td {
+  background: rgba(238, 243, 235, 0.82);
+}
+
 .results-table .col-institute {
   width: 170px;
   font-weight: 700;
@@ -761,8 +766,9 @@ button {
   border-bottom: 0;
 }
 
-.results-table tbody tr:hover td {
-  background: #fbfcf7;
+.results-table tbody tr:hover td,
+.results-table tbody tr:nth-child(even):hover td {
+  background: rgba(203, 238, 221, 0.95);
 }
 
 .rank-badge {
