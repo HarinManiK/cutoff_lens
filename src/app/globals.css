@@ -430,8 +430,11 @@ button {
    content-sized; the slack sits in the track around them rather than inside them. */
 .more-filters-row {
   display: grid;
-  grid-template-columns: repeat(3, 365px);
-  justify-content: start;
+  /* A track fits a 140px label plus the widest control. Fixed track counts overflowed
+     between the 860px breakpoint and ~1250px, so the count follows the width instead. */
+  /* auto-fill, not auto-fit: a two-field row must keep its third track reserved, or its
+     columns land in different places from the three-field row below it. */
+  grid-template-columns: repeat(auto-fill, minmax(357px, 1fr));
   align-items: center;
   gap: 10px 18px;
 }
@@ -459,8 +462,14 @@ button {
   flex: 0 0 auto;
 }
 
+/* A wrapping bank of toggles, so it spans every track instead of sitting in the first. */
 .more-filters-panel .filter-field--columns {
-  flex: 1 1 100%;
+  grid-column: 1 / -1;
+  align-items: flex-start;
+}
+
+.more-filters-panel .filter-field--columns > span {
+  padding-top: 9px;
 }
 
 .multi-filter-panel {
