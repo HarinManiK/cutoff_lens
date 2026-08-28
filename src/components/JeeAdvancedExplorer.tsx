@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
+  Info,
   Loader2,
   Search,
   SlidersHorizontal,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/display";
 import { cutoffMatchesSearch, programMatchesSearch } from "@/lib/search";
 import { LogoMark } from "@/components/LogoMark";
+import { InsightPanel, type InsightTarget } from "@/components/InsightPanel";
 import { branchGroups } from "@/lib/branch-groups";
 import type {
   ColumnKey,
@@ -379,10 +381,29 @@ function ColumnToggles({
   );
 }
 
-function renderCell(row: CutoffResult, column: ColumnKey, rankNumber: number | null) {
+function renderCell(
+  row: CutoffResult,
+  column: ColumnKey,
+  rankNumber: number | null,
+  onInspect?: (row: CutoffResult) => void,
+) {
   switch (column) {
     case "institute":
-      return shortenInstituteName(row.institute);
+      return (
+        <span className="cell-with-info">
+          {shortenInstituteName(row.institute)}
+          {onInspect ? (
+            <button
+              className="info-button"
+              type="button"
+              aria-label={`Insights for ${shortenInstituteName(row.institute)} ${programShortName(row.program)}`}
+              onClick={() => onInspect(row)}
+            >
+              <Info size={14} />
+            </button>
+          ) : null}
+        </span>
+      );
     case "program":
       return programShortName(row.program);
     case "closingRank":
@@ -439,6 +460,7 @@ export function JeeAdvancedExplorer() {
   const [programTypeSearch, setProgramTypeSearch] = useState("");
   const [showFilterJump, setShowFilterJump] = useState(false);
   const filterBarRef = useRef<HTMLElement | null>(null);
+  const [insightTarget, setInsightTarget] = useState<InsightTarget | null>(null);
 
   const closeOpenPanels = useCallback(() => {
     setOpenMultiFilter(null);
@@ -1035,7 +1057,16 @@ export function JeeAdvancedExplorer() {
                     <tr key={row.id}>
                       {visibleColumns.map((column) => (
                         <td className={`col-${column}`} key={column}>
-                          {renderCell(row, column, enteredRankNumber)}
+                          {renderCell(row, column, enteredRankNumber, (target) =>
+                            setInsightTarget({
+                              institute: target.institute,
+                              program: target.program,
+                              seatType,
+                              gender,
+                              year,
+                              round,
+                            }),
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -1071,6 +1102,10 @@ export function JeeAdvancedExplorer() {
           </>
         ) : null}
       </section>
+
+      {insightTarget ? (
+        <InsightPanel target={insightTarget} onClose={() => setInsightTarget(null)} />
+      ) : null}
     </main>
   );
 }

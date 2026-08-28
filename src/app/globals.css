@@ -1218,3 +1218,232 @@ button {
     gap: 10px;
   }
 }
+
+.cell-with-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* One icon per row would be 638 on screen at once, so it only appears on hover. */
+.info-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 2px;
+  color: var(--moss);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.results-table tbody tr:hover .info-button,
+.info-button:focus-visible {
+  opacity: 1;
+}
+
+.insight-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(23, 33, 27, 0.28);
+}
+
+.insight-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 160;
+  display: flex;
+  width: min(460px, 100vw);
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: -18px 0 48px rgba(31, 41, 35, 0.16);
+}
+
+.insight-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 18px;
+}
+
+.insight-panel__head b {
+  display: block;
+  font-size: 16px;
+}
+
+.insight-panel__head span {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.insight-panel__head button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px;
+  color: var(--ink);
+}
+
+.insight-panel__body {
+  overflow-y: auto;
+  padding: 16px 18px 24px;
+}
+
+.insight-section {
+  margin-bottom: 22px;
+}
+
+.insight-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #4d5e55;
+}
+
+.insight-points {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.insight-points li + li {
+  margin-top: 6px;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.insight-grid__title {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.insight-cell {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(251, 250, 246, 0.8);
+  padding: 7px 9px;
+}
+
+.insight-cell span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.insight-cell b {
+  font-size: 14px;
+}
+
+.insight-cell.is-current {
+  border-color: rgba(37, 89, 71, 0.4);
+  background: var(--mint);
+}
+
+.insight-fact {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.insight-fact__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4d5e55;
+}
+
+.insight-fact p {
+  margin: 5px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.insight-fact__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.insight-fact__meta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--moss);
+}
+
+.prov {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.prov--official,
+.prov--disclosure-full {
+  background: var(--mint);
+  color: var(--moss);
+}
+
+.prov--derived {
+  background: rgba(37, 89, 71, 0.1);
+  color: var(--moss);
+}
+
+.prov--unofficial,
+.prov--disclosure-partial {
+  background: rgba(243, 168, 59, 0.22);
+  color: #8a5a08;
+}
+
+.prov--not-published,
+.prov--disclosure-none {
+  background: rgba(221, 95, 84, 0.15);
+  color: #973229;
+}
+
+.insight-footnote {
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* Desktop only, as agreed. */
+@media (max-width: 860px) {
+  .info-button {
+    display: none;
+  }
+}
