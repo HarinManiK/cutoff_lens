@@ -1,0 +1,15 @@
+# Normalise to LF in the repository regardless of the checkout platform.
+# Without this, editing on Windows rewrites whole files as CRLF and every one of
+# them shows up as modified with an empty content diff.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
+
+# Generated. Collapse it in diffs and exclude it from language statistics.
+package-lock.json linguist-generated=true -diff
+
+# Official JoSAA source data, not hand-written source code.
+data/*.csv linguist-vendored=true
