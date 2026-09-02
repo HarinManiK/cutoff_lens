@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest something the explorer should do.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard or impossible for a student to do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: certainty
+    attributes:
+      label: How would this stay honest?
+      description: |
+        This project deliberately avoids implying more certainty than the data supports.
+        If your idea involves predicting or scoring chances, say how it would avoid that.

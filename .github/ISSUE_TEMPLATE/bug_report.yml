@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in the explorer behaves incorrectly.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: filters
+    attributes:
+      label: Filters in use
+      description: The exact selection, so it can be reproduced.
+      placeholder: |
+        Rank: 4500
+        Category: OBC-NCL
+        Gender: Gender Neutral
+        Year / Round: 2026 Round 5
+        Any Institution / Branch / Degree filters set
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Deployed site (cutofflens.vercel.app)
+        - Local dev server
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Chrome 141 on Android, Firefox on Windows, ...
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshot or console output
+      description: Optional, but a screenshot of the table usually settles it fastest.
