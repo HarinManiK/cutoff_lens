@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/HarinManiK/cutoff_lens/discussions
+    about: Ask about how the explorer works, or float an idea before opening an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/HarinManiK/cutoff_lens/security/advisories/new
+    about: Please report privately here rather than in a public issue.

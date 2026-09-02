@@ -1,0 +1,51 @@
+name: Data correction
+description: A cutoff number, institute name or branch label looks wrong.
+labels: ["data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every number here should be traceable to official JoSAA data. If one is not,
+        that is a serious bug — thank you for reporting it.
+
+  - type: input
+    id: institute
+    attributes:
+      label: Institute
+      placeholder: IIT Bombay
+    validations:
+      required: true
+
+  - type: input
+    id: branch
+    attributes:
+      label: Branch / programme
+      placeholder: Computer Science and Engineering (4 Years, Bachelor of Technology)
+    validations:
+      required: true
+
+  - type: input
+    id: slice
+    attributes:
+      label: Year, round, seat type and gender
+      placeholder: 2026 Round 5, OPEN, Gender-Neutral
+    validations:
+      required: true
+
+  - type: textarea
+    id: mismatch
+    attributes:
+      label: Shown vs expected
+      placeholder: |
+        Shown here:  closing rank 68
+        Official:    closing rank 66
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Official source
+      description: A link to the JoSAA page or PDF the correct value comes from.
+    validations:
+      required: true
