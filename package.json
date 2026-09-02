@@ -1,7 +1,18 @@
 {
-  "name": "indianexams",
+  "name": "cutoff-lens",
   "version": "1.0.0",
   "description": "Counselling cutoff explorer for Indian entrance exams.",
+  "homepage": "https://cutofflens.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HarinManiK/cutoff_lens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HarinManiK/cutoff_lens/issues"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,7 +27,7 @@
     "counselling",
     "cutoffs"
   ],
-  "author": "",
+  "author": "Harin Mani",
   "license": "MIT",
   "type": "module",
   "dependencies": {
