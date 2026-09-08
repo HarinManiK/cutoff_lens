@@ -81,20 +81,3 @@ cutoffs               source_id, exam_id, institute_id, program_id, year, round,
 `cutoff_results` is the flattened view every read goes through. It is
 `security_invoker = on` so it cannot be used to read around row-level security — see
 [SECURITY.md](../SECURITY.md).
-
-## Institute facts
-
-Facts about institutes live in `src/lib/content/institutes.ts` and are typed as `Fact<T>`
-from `src/lib/content/provenance.ts`. Every one carries its provenance:
-
-| Provenance | Meaning |
-| --- | --- |
-| `official` | Published by the institute itself. Requires a link, and a date it refers to. |
-| `derived` | Computed from the JoSAA rows this site already holds. |
-| `unofficial` | A named third party. Shown, but visibly marked as not from the institute. |
-| `not-published` | Checked for and absent. Displayed as a gap rather than quietly omitted. |
-
-Search results for IIT placement data are dominated by aggregators, and their numbers become
-indistinguishable from official ones the moment they are copied into a card. Do not add a
-number without saying what backs it. If the institute does not publish it, `notPublished()`
-with a note is the correct answer — not a plausible figure from elsewhere.

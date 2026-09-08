@@ -22,4 +22,3 @@
 - [ ] Preparatory (`P`-suffixed) ranks stay hidden from user-facing results
 - [ ] The right rank basis is used: CRL for OPEN, category rank for reserved seat types, PwD rank for PwD seat types
 - [ ] Nothing is presented with more certainty than the data supports — this is "a better guess, not a prediction"
-- [ ] Any new fact about an institute carries its provenance and a source

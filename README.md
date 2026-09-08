@@ -37,8 +37,6 @@ its source, including the ones where the answer is "the institute does not publi
 - **Cross-filtered facets** — institution, branch, degree, duration and course type, each narrowed by the others
 - **Branch bulk-select** — pick "All Computer / AI / Data / Computing" instead of ticking fifteen boxes
 - **Alias-aware search** — `cse`, `mnc`, `ece`, `mech` all resolve to the right programmes
-- **Per-branch insight panel** — where a branch sits among its institute's branches, how the closing rank moved across rounds and years, and the same seat at every category
-- **Sourced institute facts** — placement and research figures shown with provenance, never laundered from an aggregator into a bare number
 - **Runs with zero setup** — with no database configured it reads the CSVs in `data/` directly
 
 ## Quick start

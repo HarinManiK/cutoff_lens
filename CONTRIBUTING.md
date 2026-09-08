@@ -62,7 +62,7 @@ refactor(filters): move Institution and Branch into More filters
 docs(readme): document the data correction workflow
 ```
 
-Scopes in use: `filters`, `table`, `insights`, `data`, `db`, `css`, `readme`. Add one if
+Scopes in use: `filters`, `table`, `data`, `db`, `css`, `readme`. Add one if
 none fits. Write the subject as what the change does for a user, not what you edited.
 
 ## Code conventions

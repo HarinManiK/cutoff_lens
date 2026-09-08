@@ -13,22 +13,16 @@ src/app/
   api/cutoffs/jee-advanced/
     route.ts                          The cutoff query
     datasets/route.ts                 Which year/round pairs exist
-    insights/route.ts                 Per college-branch panel data
 src/components/
   JeeAdvancedExplorer.tsx             All filter state
-  InsightPanel.tsx                    The slide-over panel
 src/lib/
   display.ts                          JoSAA string wrangling and sort order
   search.ts                           Client-side search with branch aliases
   branch-groups.ts                    Regex bulk-select groups
-  insights.ts                         Ranking and trend computation
-  rounds.ts                           Final round per year
   local-cutoffs.ts                    CSV parsing
   datasets.ts                         Dataset discovery across both sources
   supabase-server.ts                  Client factory, null when unconfigured
   supabase-rows.ts                    Paging around the PostgREST row cap
-  content/institutes.ts               Institute profiles
-  content/provenance.ts               The Fact<T> type
 ```
 
 ## The dual data source
@@ -72,11 +66,6 @@ filter state. Filter options are cross-filtered: each dropdown's options come fr
 matching every *other* selection, with effects that prune selections which become invalid.
 The sticky table header offsets by a `--filter-height` CSS variable the component keeps in
 sync, because the filter bar's height changes as fields wrap.
-
-**`src/lib/content/provenance.ts`** defines `Fact<T>`, which carries a `provenance`
-discriminator plus source and date. This is deliberate: making provenance part of the type
-means a fact cannot be added without declaring what backs it. `notPublished()` renders a gap
-explicitly rather than letting an absent number disappear.
 
 ## Status
 
