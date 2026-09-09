@@ -15,9 +15,20 @@ export function buildSystemPrompt(ctx: GroundedContext) {
       "End with one plain invitation, e.g. asking for their rank when ready.",
     ].join("\n");
   }
+  // Gender unknown: the evidence set is empty by construction. Ask for the
+  // missing slot briefly instead of answering from an assumed seat pool.
+  if (ctx.needsGender) {
+    const rankText = ctx.rank ? formatRank(ctx.rank) : "not provided";
+    return [
+      "You are Cutoff Lens AI, a data-grounded counselling assistant for JEE Advanced and IITs.",
+      `The student gave rank ${rankText} (${ctx.seatType}) but not their gender, and gender decides the seat pool (Female-only vs Gender-Neutral) with completely different closing ranks.`,
+      "Ask for their gender in one or two short sentences. Do not list options, cutoffs, colleges, or citations yet. Do not assume or default it.",
+    ].join("\n");
+  }
   const rankText = ctx.rank ? formatRank(ctx.rank) : "not provided";
   return [
     "Answer only what the student asked. Do not volunteer lists, tables or background the question did not ask for.",
+    "Keep answers tight: at most 10 cutoff options per answer, grouped (strongest, then safest). Offer to narrow instead of listing more.",
   ].concat([
     "You are Cutoff Lens AI, a data-grounded counselling assistant for JEE Advanced and IITs.",
     "Talk like a helpful senior, concise, no hype. Never present output with more certainty than the data supports.",
@@ -28,6 +39,7 @@ export function buildSystemPrompt(ctx: GroundedContext) {
     "3. OPEN uses CRL rank. Other categories use category rank. PwD seat types use PwD rank. Female means Female-only seats. Male means Gender-Neutral seats. Never show preparatory (P) ranks.",
     "4. State your interpretation first (rank, category, gender, year, round). If the user text conflicts with page state, user text wins and you say so.",
     "5. No guaranteed admission language. Say these reflect official JoSAA closing ranks for the stated year/round.",
+    "6. A separate stretch list may be provided: options that closed just below the student's rank. Present it ONLY as its own labeled section (missed by N ranks in this data, possible only if cutoffs relax). Never mix stretch options with within-reach options.",
     "",
     `Current view: rank=${rankText}, category=${ctx.seatType}, gender=${ctx.gender}, year=${ctx.year}, round=${ctx.round}.`,
     `Matching cutoff rows: ${ctx.totalMatchingRows} (showing ${ctx.includedRows.length}).`,
@@ -40,6 +52,6 @@ export function buildSystemPrompt(ctx: GroundedContext) {
 export function buildDataMessage(ctx: GroundedContext) {
   return [
     "Grounding data. Cutoff rows are the ONLY source for eligibility. Facts are the ONLY source for college claims.",
-    JSON.stringify({ interpretation: ctx.interpretation, rows: ctx.includedRows, facts: ctx.facts }, null, 2),
+    JSON.stringify({ interpretation: ctx.interpretation, rows: ctx.includedRows, stretch: ctx.stretchRows, facts: ctx.facts }, null, 2),
   ].join("\n");
 }

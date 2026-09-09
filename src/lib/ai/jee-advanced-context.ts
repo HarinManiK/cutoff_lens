@@ -40,15 +40,25 @@ export type IncludedRow = {
 
 export type FactCitation = CollegeFactSeed & { ref: number };
 
+export type StretchRow = {
+  institute: string;
+  branch: string;
+  closingRank: number;
+  shortfall: number;
+};
+
 export type GroundedContext = {
   rank: number | null;
   seatType: string;
   gender: GenderFilter;
+  genderStated: boolean;
+  needsGender: boolean;
   year: number;
   round: number;
   totalMatchingRows: number;
   includedRows: IncludedRow[];
   truncated: boolean;
+  stretchRows: StretchRow[];
   facts: FactCitation[];
   interpretation: string;
   isGreeting: boolean;
@@ -241,7 +251,13 @@ export async function buildGroundedContext(
 
   const seatRaw = seatTypeFromMessage(text) ?? pageState.seatType ?? "OPEN";
   const seatType = seatTypes.includes(seatRaw) ? seatRaw : "OPEN";
-  const gender = genderFromMessage(text) ?? pageState.gender ?? "Male";
+  const statedGender = genderFromMessage(text);
+  const gender = statedGender ?? pageState.gender ?? "Male";
+  // Gender picks the entire seat pool (Female-only vs Gender-Neutral), so a
+  // defaulted gender must never silently answer a rank question. Ask instead.
+  // Page rank present means the student sees their filters in the UI, so the
+  // visible default counts as stated there; incognito/fresh sessions ask.
+  const genderStated = Boolean(statedGender) || pageRank !== null;
 
   const pageYear = Number(pageState.year);
   const pageRound = Number(pageState.round);
@@ -255,14 +271,39 @@ export async function buildGroundedContext(
       rank,
       seatType,
       gender,
+      genderStated,
+      needsGender: false,
       year,
       round,
       totalMatchingRows: 0,
       includedRows: [],
       truncated: false,
+      stretchRows: [],
       facts: [],
       interpretation: `rank=not provided, category=${seatType}, gender=${gender}, year=${year}, round=${round}`,
       isGreeting: true,
+    };
+  }
+
+  // Rank given but gender defaulted and invisible to the student: ask for
+  // gender rather than answering from the wrong seat pool. Empty evidence
+  // set, same as greetings.
+  if (rank && !genderStated) {
+    return {
+      rank,
+      seatType,
+      gender,
+      genderStated,
+      needsGender: true,
+      year,
+      round,
+      totalMatchingRows: 0,
+      includedRows: [],
+      truncated: false,
+      stretchRows: [],
+      facts: [],
+      interpretation: `rank=${formatRank(rank)}, category=${seatType}, gender=unknown (asked), year=${year}, round=${round}`,
+      isGreeting: false,
     };
   }
 
@@ -274,8 +315,7 @@ export async function buildGroundedContext(
   const durations = pageState.selectedDurations ?? [];
   const types = pageState.selectedProgramTypes ?? [];
 
-  const filtered = rows
-    .filter((r) => (rank ? r.closingRankNumber >= rank : true))
+  const selectionFiltered = rows
     .filter((r) => (institutes.length ? institutes.includes(r.institute) : true))
     .filter((r) => (programs.length ? programs.includes(r.program) : true))
     .filter((r) => {
@@ -289,7 +329,10 @@ export async function buildGroundedContext(
     .filter((r) => {
       if (!types.length) return true;
       return types.includes(programMeta(r.program).programType);
-    })
+    });
+
+  const filtered = selectionFiltered
+    .filter((r) => (rank ? r.closingRankNumber >= rank : true))
     .sort(compareCutoffByInstituteAndProgram);
 
   const includedRows: IncludedRow[] = filtered.slice(0, MAX_ROWS).map((r) => {
@@ -330,5 +373,23 @@ export async function buildGroundedContext(
   const rankText = rank ? formatRank(rank) : "not provided";
   const interpretation = `rank=${rankText}, category=${seatType}, gender=${gender}, year=${year}, round=${round}`;
 
-  return { rank, seatType, gender, year, round, totalMatchingRows: filtered.length, includedRows, truncated: filtered.length > includedRows.length, facts, interpretation, isGreeting: false };
+  // Near misses: options that closed just below the student's rank. Cutoffs
+  // shift year to year, so a miss by a hair is worth one labeled line —
+  // never mixed with within-reach options.
+  let stretchRows: StretchRow[] = [];
+  if (rank) {
+    const band = Math.max(100, Math.round(rank * 0.03));
+    stretchRows = selectionFiltered
+      .filter((r) => r.closingRankNumber < rank && r.closingRankNumber >= rank - band)
+      .sort((a, b) => b.closingRankNumber - a.closingRankNumber)
+      .slice(0, 5)
+      .map((r) => ({
+        institute: shortenInstituteName(r.institute),
+        branch: programShortName(r.program),
+        closingRank: r.closingRankNumber,
+        shortfall: rank - r.closingRankNumber,
+      }));
+  }
+
+  return { rank, seatType, gender, genderStated, needsGender: false, year, round, totalMatchingRows: filtered.length, includedRows, truncated: filtered.length > includedRows.length, stretchRows, facts, interpretation, isGreeting: false };
 }

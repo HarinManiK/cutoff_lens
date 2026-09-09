@@ -7,6 +7,12 @@ export function buildDatabaseAnswer(ctx: GroundedContext) {
   if (ctx.isGreeting) {
     return "Hi! I help with JEE Advanced counselling — realistic options for your rank, plus honest college details. What rank are you working with?";
   }
+  if (ctx.needsGender) {
+    return [
+      `Got rank ${formatRank(ctx.rank ?? 0)} (${ctx.seatType}). One thing before I list anything: are you applying in the Female-only pool or Gender-Neutral?`,
+      "Closing ranks differ completely between the two, so I don't want to show you the wrong seats.",
+    ].join("\n\n");
+  }
   if (!ctx.rank) {
     return [
       "What is your JEE Advanced rank?",
@@ -35,6 +41,15 @@ export function buildDatabaseAnswer(ctx: GroundedContext) {
     "Strongest options from your current filters:",
     ...lines,
     ...(ctx.truncated ? ["", `Showing ${ctx.includedRows.length} of ${ctx.totalMatchingRows}. Narrow filters for a tighter list.`] : []),
+    ...(ctx.stretchRows.length > 0
+      ? [
+          "",
+          "Just missed (closed below your rank in this data — only if cutoffs relax):",
+          ...ctx.stretchRows
+            .slice(0, 3)
+            .map((r, i) => `${i + 1}. ${r.institute} - ${r.branch} (closed ${formatRank(r.closingRank)}, short by ${formatRank(r.shortfall)})`),
+        ]
+      : []),
     "",
     "Safer picks by closing-rank margin:",
     ...saferLines,
