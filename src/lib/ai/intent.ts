@@ -230,11 +230,19 @@ export function branchPreferenceFromMessage(message: string): BranchPreference |
 
   // Fall back to the same alias-aware search the results table uses, so a
   // named branch ("naval architecture", "engineering design") still filters.
+  // Degree wording is stripped first: without this, "I just want a BTech
+  // degree" captures "want a BTech degree" as a branch, matches no program,
+  // and silently deletes every row from the evidence.
   const quoted = message.match(/\b(?:in|for|only|just|want|prefer|interested in)\s+([a-z][a-z\s&+.-]{3,40}?)\s*(?:branch|engineering|\.|,|\?|$)/i);
-  const candidate = quoted?.[1]?.trim();
+  const candidate = quoted?.[1]
+    ?.replace(/\b(b\.?\s?tech|b\.?\s?s\.?|b\.?\s?arch|m\.?\s?tech|degree|program(me)?|course|stream|colleges?|options?|picks?)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^(want|prefer|like|need|get|take|a|an|the|just|only|for|in|my|some|good|best|top)\b\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (candidate && normalizeSearchText(candidate).split(" ").length <= 4) {
     const normalized = normalizeSearchText(candidate);
-    if (normalized.length >= 3 && !/^(the|best|good|top|any|some|my|a)$/.test(normalized)) {
+    if (normalized.length >= 3 && !/^(the|best|good|top|any|some|my|a|an)$/.test(normalized)) {
       return { label: candidate, matches: (program: string) => programMatchesSearch(program, candidate) };
     }
   }
@@ -307,7 +315,7 @@ const COLLEGE_INFO =
   /\b(placements?|packages?|ctc|salar(y|ies)|medians?|averages?|recruit\w*|intern\w*|fees?|tuition|scholarships?|hostels?|mess|campus\w*|curricul\w*|syllabus|branch change|grading|cgpa|minors?|honou?rs|double major|start-?ups?|incubat\w*|e-?cell|entrepreneur\w*|facult\w*|research|clubs?|fests?|ragging|counsell?ors?|mental health|life at|what.{0,12}like)\b/i;
 
 const CUTOFF =
-  /\b(ranks?|air|crl|cut-?offs?|closing|opening|chances?|options?|colleges?|branch(es)?|admissions?|seats?|eligible|get into|can i get|best pick|safe|reach|categor(y|ies)|obc|ews|sc|st|pwd|open|general|male|female)\b|\b\d{2,7}\b/i;
+  /\b(ranks?|air|crl|cut-?offs?|closing|opening|chances?|options?|picks?|colleges?|branch(es)?|admissions?|seats?|eligible|get into|can i get|best pick|safe|reach|categor(y|ies)|obc|ews|sc|st|pwd|open|general|male|female)\b|\b\d{2,7}\b/i;
 
 // Signals the message is about something this product has no data for at all.
 const OUT_OF_SCOPE_TOPIC =
