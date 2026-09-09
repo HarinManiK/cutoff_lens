@@ -131,6 +131,7 @@ const DEMO_ANSWER = [
 function isDemoRequest(lastUser: string, pageState: PageState | undefined) {
   const normalized = lastUser
     .toLowerCase()
+    .replace(/[''']/g, "")
     .replace(/[^a-z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

@@ -103,6 +103,13 @@ const checks: Check[] = [
     },
   },
   {
+    name: "'top 5 picks' is a count, not rank 5",
+    run: async () => {
+      const ctx = await ask(["my rank is 2700, sc, female", "based on my rank, what's the top 5 picks for me?"]);
+      return ctx.rank === 2700 ? null : `resolved rank ${ctx.rank}`;
+    },
+  },
+  {
     name: "intents route correctly",
     run: () => {
       const cases: Array<[string, boolean, string]> = [

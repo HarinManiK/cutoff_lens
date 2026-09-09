@@ -53,6 +53,7 @@ const MAX_RANK = 1_500_000;
 function maskNonRankNumbers(text: string) {
   return text
     .replace(/\b(19|20)\d{2}\b/g, " <year> ")
+    .replace(/\btop\s*\d{1,3}\b/gi, " <count> ")
     .replace(/\bround\s*-?\s*\d{1,2}\b/gi, " <round> ")
     .replace(/\br\s?[1-9]\b/gi, " <round> ")
     .replace(/\btop\s*\d{1,3}\s*(%|percent|percentile)/gi, " <pct> ")
