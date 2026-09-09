@@ -21,10 +21,11 @@ export function buildDatabaseAnswer(ctx: GroundedContext) {
   }
   if (ctx.totalMatchingRows === 0) {
     return [
-      `Based on official JoSAA ${ctx.year} Round ${ctx.round} IIT data, I see no matching options for rank ${formatRank(ctx.rank)} with ${ctx.seatType} / ${ctx.gender}.`,
+      `Based on official JoSAA ${ctx.year} Round ${ctx.round} IIT data, I see no${ctx.preference ? ` ${ctx.preference}` : ""} matching options for rank ${formatRank(ctx.rank)} with ${ctx.seatType} / ${ctx.gender}.`,
       "Try a different year/round, or remove branch/institution filters. Only change category/gender if it matches your actual rank type.",
     ].join("\n\n");
   }
+  const scope = ctx.preference ? `${ctx.preference} ` : "";
   const lines = ctx.includedRows.slice(0, 8).map((r, i) => {
     const margin = `, margin +${formatRank(r.closingRank - (ctx.rank ?? 0))}`;
     return `${i + 1}. ${r.institute} - ${r.branch} (closing ${formatRank(r.closingRank)}${margin})`;
@@ -38,7 +39,7 @@ export function buildDatabaseAnswer(ctx: GroundedContext) {
   return [
     `Based on official JoSAA ${ctx.year} Round ${ctx.round} data for rank ${formatRank(ctx.rank)} (${ctx.seatType}, ${ctx.gender}):`,
     "",
-    "Strongest options from your current filters:",
+    `Strongest ${scope}options from your current filters:`,
     ...lines,
     ...(ctx.truncated ? ["", `Showing ${ctx.includedRows.length} of ${ctx.totalMatchingRows}. Narrow filters for a tighter list.`] : []),
     ...(ctx.stretchRows.length > 0
