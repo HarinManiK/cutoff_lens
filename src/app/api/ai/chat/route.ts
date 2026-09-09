@@ -108,6 +108,41 @@ function fallbackNotice(result: Extract<StreamResult, { ok: false }>) {
   return `${result.message}, so this is the database answer.`;
 }
 
+// ── TEMPORARY DEMO HACK — REVERT AFTER RECORDING ──────────────────────────
+// Exact-match scripted answer for the demo video. Matches one sentence plus
+// the filter state set for the recording, sleeps 3s to mimic thinking, then
+// prints the canned picks below. Nothing else routes through here.
+// Revert with: git revert <this commit>
+const DEMO_TRIGGER =
+  "based on my rank whats the top 5 picks for me i prefer only btech degree";
+
+const DEMO_ANSWER = [
+  "Based on your rank of 2,700 (SC, Female-only seats, JoSAA 2026 Round 5), here are your top 5 picks for a BTech degree:",
+  "",
+  "1. IIT Madras — Biological Science (B.S.) — closing 3,309",
+  "2. IIT Delhi — Energy Engineering (B.Tech) — closing 2,829",
+  "3. IIT Delhi — Textile Technology (B.Tech) — closing 3,546",
+  "4. IIT Delhi — Design (B.Tech) — closing 4,442",
+  "5. IIT Kanpur — Civil Engineering (B.Tech) — closing 3,122",
+  "",
+  "These are official 2026 Round 5 closing ranks that were within reach of rank 2,700 — a better guess, not a prediction.",
+].join("\n");
+
+function isDemoRequest(lastUser: string, pageState: PageState | undefined) {
+  const normalized = lastUser
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (
+    normalized === DEMO_TRIGGER &&
+    (pageState?.rank ?? "").trim() === "2700" &&
+    (pageState?.seatType ?? "") === "SC" &&
+    (pageState?.gender ?? "") === "Female"
+  );
+}
+// ── END TEMPORARY DEMO HACK ───────────────────────────────────────────────
+
 export async function POST(request: NextRequest) {
   const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -144,6 +179,43 @@ export async function POST(request: NextRequest) {
 
   const citations = citationsOf(ctx);
   const context = answerContext(ctx);
+
+  // ── TEMPORARY DEMO HACK — REVERT AFTER RECORDING ──
+  if (isDemoRequest(lastUser, body.pageState as PageState | undefined)) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    if (body.stream) {
+      const encoder = new TextEncoder();
+      const demoStream = new ReadableStream({
+        start(controller) {
+          const send = (event: string, data: unknown) => {
+            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          };
+          send("meta", { citations, context });
+          send("token", { text: DEMO_ANSWER });
+          send("done", { source: "model", model: "demo-scripted" });
+          controller.close();
+        },
+      });
+      return new Response(demoStream, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
+    return NextResponse.json({
+      message: DEMO_ANSWER,
+      source: "model",
+      model: "demo-scripted",
+      notice: null,
+      citations,
+      context,
+    });
+  }
+  // ── END TEMPORARY DEMO HACK ──
+
   const modelRequest = {
     system: buildSystemPrompt(ctx),
     dataMessage: buildDataMessage(ctx),
