@@ -4,6 +4,9 @@ import type { GroundedContext } from "@/lib/ai/jee-advanced-context";
 // Deterministic database-only answer. Works with no LLM key and is the
 // fallback whenever the model is unreachable. Never invents numbers.
 export function buildDatabaseAnswer(ctx: GroundedContext) {
+  if (ctx.isGreeting) {
+    return "Hi! I help with JEE Advanced counselling — realistic options for your rank, plus honest college details. What rank are you working with?";
+  }
   if (!ctx.rank) {
     return [
       "What is your JEE Advanced rank?",

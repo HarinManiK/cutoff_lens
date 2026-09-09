@@ -51,7 +51,25 @@ export type GroundedContext = {
   truncated: boolean;
   facts: FactCitation[];
   interpretation: string;
+  isGreeting: boolean;
 };
+
+// Intent gate: greetings and small talk carry no question, so they get no
+// grounding data. This is what keeps "Hi" to one line without scripting
+// answers: with no rows/facts injected, there is nothing to dump.
+// Anything mentioning a rank, category, college, branch or topic is counselling.
+const COUNSELLING_SIGNAL =
+  /\b(jee|advanced|iit|rank|crl|air|cutoff|closing|opening|college|branch|campus|placement|package|ctc|salary|median|average|fee|tuition|curriculum|syllabus|hostel|mess|gender|male|female|category|open|obc|ews|sc\b|st\b|pwd|general|option|options|admission|seat|compare|eligible|cse|computer|electrical|mechanical|civil|chemical|aerospace|engineering|science|startup|incubat|research|faculty|fests?|clubs?)\b|\d{2,7}/i;
+
+const GREETING_PATTERN =
+  /^(hi+|hey+|hello+|namaste|yo|sup|good\s?(morning|afternoon|evening|day)|how\s?are\s?you|howdy|hais?)[\s!.,?]*$/i;
+
+export function isGreetingLike(message: string) {
+  const text = message.trim();
+  if (!text || text.length > 140) return false;
+  if (COUNSELLING_SIGNAL.test(text)) return false;
+  return GREETING_PATTERN.test(text.replace(/\s+/g, " "));
+}
 
 const MAX_ROWS = 60;
 const MAX_FACTS = 12;
@@ -230,6 +248,24 @@ export async function buildGroundedContext(
   const year = yearFromMessage(text) ?? (Number.isInteger(pageYear) && pageYear > 0 ? pageYear : 2026);
   const round = roundFromMessage(text) ?? (Number.isInteger(pageRound) && pageRound > 0 ? pageRound : 5);
 
+  // Greeting/small talk: no question asked, so load nothing. The model gets
+  // an empty evidence set and a brevity instruction instead of 60 rows.
+  if (!rank && isGreetingLike(lastUserMessage)) {
+    return {
+      rank,
+      seatType,
+      gender,
+      year,
+      round,
+      totalMatchingRows: 0,
+      includedRows: [],
+      truncated: false,
+      facts: [],
+      interpretation: `rank=not provided, category=${seatType}, gender=${gender}, year=${year}, round=${round}`,
+      isGreeting: true,
+    };
+  }
+
   const rows = await loadCutoffRows(seatType, gender, year, round);
 
   const institutes = pageState.selectedInstitutes ?? [];
@@ -294,5 +330,5 @@ export async function buildGroundedContext(
   const rankText = rank ? formatRank(rank) : "not provided";
   const interpretation = `rank=${rankText}, category=${seatType}, gender=${gender}, year=${year}, round=${round}`;
 
-  return { rank, seatType, gender, year, round, totalMatchingRows: filtered.length, includedRows, truncated: filtered.length > includedRows.length, facts, interpretation };
+  return { rank, seatType, gender, year, round, totalMatchingRows: filtered.length, includedRows, truncated: filtered.length > includedRows.length, facts, interpretation, isGreeting: false };
 }
