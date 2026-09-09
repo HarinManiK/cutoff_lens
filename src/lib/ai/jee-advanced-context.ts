@@ -47,12 +47,41 @@ export type StretchRow = {
   shortfall: number;
 };
 
+// Degree/type preference stated in chat ("btech only", "no dual").
+// Message-level and overrides the page multi-selects when present, because
+// it reflects the latest intent. Applied to the evidence itself so the model
+// AND the deterministic fallback both obey it.
+export type DegreePreference = {
+  degrees: string[] | null;
+  programTypes: string[] | null;
+  label: string | null;
+};
+
+function extractDegreePreference(text: string): DegreePreference {
+  const n = text.toLowerCase();
+  const exclusive = /\b(only|just|exclusively|strictly)\b/.test(n);
+  const noDual = /\bno\s+dual\b|\bwithout\s+dual\b|\bsingle\s+degree\b|\bnot?\s+\w{0,12}\s+dual\b/.test(n);
+  const cleaned = n.replace(/b\.?\s?tech\s*\+\s*m\.?\s?tech/g, " ");
+  const degrees: string[] = [];
+  if (exclusive && /\bb\.?\s?tech\b/.test(cleaned)) degrees.push("B.Tech");
+  if (exclusive && (/\bb\.?\s?s\.?\b/.test(n) || /\bbs\b/.test(n))) degrees.push("B.S.");
+  if (exclusive && /\bb\.?\s?arch\b/.test(n)) degrees.push("B.Arch");
+  const programTypes = noDual || degrees.length > 0 ? ["Single Degree"] : null;
+  const label = degrees.length > 0 ? `${degrees.join("/").replace(/\./g, "")}-only` : programTypes ? "single-degree-only" : null;
+  return {
+    degrees: degrees.length > 0 ? degrees : null,
+    programTypes,
+    label,
+  };
+}
+
 export type GroundedContext = {
   rank: number | null;
   seatType: string;
   gender: GenderFilter;
   genderStated: boolean;
   needsGender: boolean;
+  preference: string | null;
   year: number;
   round: number;
   totalMatchingRows: number;
@@ -282,6 +311,7 @@ export async function buildGroundedContext(
       facts: [],
       interpretation: `rank=not provided, category=${seatType}, gender=${gender}, year=${year}, round=${round}`,
       isGreeting: true,
+      preference: null,
     };
   }
 
@@ -304,6 +334,7 @@ export async function buildGroundedContext(
       facts: [],
       interpretation: `rank=${formatRank(rank)}, category=${seatType}, gender=unknown (asked), year=${year}, round=${round}`,
       isGreeting: false,
+      preference: null,
     };
   }
 
@@ -315,20 +346,24 @@ export async function buildGroundedContext(
   const durations = pageState.selectedDurations ?? [];
   const types = pageState.selectedProgramTypes ?? [];
 
+  const msgPref = extractDegreePreference(text);
+  const effectiveDegrees = msgPref.degrees ?? degrees;
+  const effectiveTypes = msgPref.programTypes ?? types;
+
   const selectionFiltered = rows
     .filter((r) => (institutes.length ? institutes.includes(r.institute) : true))
     .filter((r) => (programs.length ? programs.includes(r.program) : true))
     .filter((r) => {
-      if (!degrees.length) return true;
-      return degrees.includes(programMeta(r.program).degree);
+      if (!effectiveDegrees.length) return true;
+      return effectiveDegrees.includes(programMeta(r.program).degree);
     })
     .filter((r) => {
       if (!durations.length) return true;
       return durations.includes(programMeta(r.program).duration);
     })
     .filter((r) => {
-      if (!types.length) return true;
-      return types.includes(programMeta(r.program).programType);
+      if (!effectiveTypes.length) return true;
+      return effectiveTypes.includes(programMeta(r.program).programType);
     });
 
   const filtered = selectionFiltered
@@ -371,7 +406,7 @@ export async function buildGroundedContext(
   const facts: FactCitation[] = scored.map((s, i) => ({ ...s.f, ref: i + 1 }));
 
   const rankText = rank ? formatRank(rank) : "not provided";
-  const interpretation = `rank=${rankText}, category=${seatType}, gender=${gender}, year=${year}, round=${round}`;
+  const interpretation = `rank=${rankText}, category=${seatType}, gender=${gender}, year=${year}, round=${round}${msgPref.label ? `, pref=${msgPref.label}` : ""}`;
 
   // Near misses: options that closed just below the student's rank. Cutoffs
   // shift year to year, so a miss by a hair is worth one labeled line —
@@ -391,5 +426,5 @@ export async function buildGroundedContext(
       }));
   }
 
-  return { rank, seatType, gender, genderStated, needsGender: false, year, round, totalMatchingRows: filtered.length, includedRows, truncated: filtered.length > includedRows.length, stretchRows, facts, interpretation, isGreeting: false };
+  return { rank, seatType, gender, genderStated, needsGender: false, year, round, totalMatchingRows: filtered.length, includedRows, truncated: filtered.length > includedRows.length, stretchRows, facts, interpretation, isGreeting: false, preference: msgPref.label };
 }

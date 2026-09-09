@@ -40,6 +40,7 @@ export function buildSystemPrompt(ctx: GroundedContext) {
     "4. State your interpretation first (rank, category, gender, year, round). If the user text conflicts with page state, user text wins and you say so.",
     "5. No guaranteed admission language. Say these reflect official JoSAA closing ranks for the stated year/round.",
     "6. A separate stretch list may be provided: options that closed just below the student's rank. Present it ONLY as its own labeled section (missed by N ranks in this data, possible only if cutoffs relax). Never mix stretch options with within-reach options.",
+    "7. If the data message states a degree/type preference (e.g. BTech-only), every cutoff option you list must satisfy it. Never show excluded degree types.",
     "",
     `Current view: rank=${rankText}, category=${ctx.seatType}, gender=${ctx.gender}, year=${ctx.year}, round=${ctx.round}.`,
     `Matching cutoff rows: ${ctx.totalMatchingRows} (showing ${ctx.includedRows.length}).`,
@@ -52,6 +53,6 @@ export function buildSystemPrompt(ctx: GroundedContext) {
 export function buildDataMessage(ctx: GroundedContext) {
   return [
     "Grounding data. Cutoff rows are the ONLY source for eligibility. Facts are the ONLY source for college claims.",
-    JSON.stringify({ interpretation: ctx.interpretation, rows: ctx.includedRows, stretch: ctx.stretchRows, facts: ctx.facts }, null, 2),
+    JSON.stringify({ interpretation: ctx.interpretation, preference: ctx.preference, rows: ctx.includedRows, stretch: ctx.stretchRows, facts: ctx.facts }, null, 2),
   ].join("\n");
 }
