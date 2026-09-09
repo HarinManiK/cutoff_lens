@@ -19,6 +19,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "check:ai": "tsx scripts/check-ai-grounding.ts",
     "import:jee-advanced": "tsx scripts/import-cutoffs.ts"
   },
   "keywords": [

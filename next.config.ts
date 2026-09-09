@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   // serverless bundle and the local-CSV fallback fails in production.
   outputFileTracingIncludes: {
     "/api/cutoffs/**": ["./data/**"],
+    // The AI route reads the same CSVs through the same runtime-built path, so
+    // it needs the same escape hatch. Without it the counsellor's local-CSV
+    // fallback throws in production while dev keeps working.
+    "/api/ai/**": ["./data/**"],
   },
 };
 

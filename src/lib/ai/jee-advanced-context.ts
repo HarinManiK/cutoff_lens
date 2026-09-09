@@ -1,5 +1,4 @@
 import {
-  compareCutoffByInstituteAndProgram,
   formatRank,
   programMeta,
   programShortName,
@@ -11,9 +10,17 @@ import { loadLocalJeeAdvancedCutoffs } from "@/lib/local-cutoffs";
 import { fetchAllRows } from "@/lib/supabase-rows";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { collegeSeedFacts, type CollegeFactSeed } from "@/lib/ai/college-seed";
+import {
+  classifyIntent,
+  mentionedInstitutes,
+  resolveSlots,
+  type AiChatMessage,
+  type Intent,
+  type Slots,
+} from "@/lib/ai/intent";
 import type { CutoffResult, GenderFilter } from "@/lib/types";
 
-export type AiChatMessage = { role: "user" | "assistant"; content: string };
+export type { AiChatMessage } from "@/lib/ai/intent";
 
 export type PageState = {
   rank?: string;
@@ -36,9 +43,9 @@ export type IncludedRow = {
   degree: string;
   duration: string;
   courseType: string;
+  margin: number;
+  band: "tight" | "likely" | "safe";
 };
-
-export type FactCitation = CollegeFactSeed & { ref: number };
 
 export type StretchRow = {
   institute: string;
@@ -47,71 +54,54 @@ export type StretchRow = {
   shortfall: number;
 };
 
-// Degree/type preference stated in chat ("btech only", "no dual").
-// Message-level and overrides the page multi-selects when present, because
-// it reflects the latest intent. Applied to the evidence itself so the model
-// AND the deterministic fallback both obey it.
-export type DegreePreference = {
-  degrees: string[] | null;
-  programTypes: string[] | null;
-  label: string | null;
+export type FactCitation = CollegeFactSeed & { ref: number };
+
+export type Coverage = {
+  // Rows that satisfy every filter and are within reach.
+  totalInReach: number;
+  // Rows handed to the model.
+  included: number;
+  // Institutes represented in the included rows, out of those actually available.
+  institutesIncluded: number;
+  institutesAvailable: number;
+  // True only when some institute is missing from the evidence entirely.
+  instituteCoverageComplete: boolean;
 };
 
-function extractDegreePreference(text: string): DegreePreference {
-  const n = text.toLowerCase();
-  const exclusive = /\b(only|just|exclusively|strictly)\b/.test(n);
-  const noDual = /\bno\s+dual\b|\bwithout\s+dual\b|\bsingle\s+degree\b|\bnot?\s+\w{0,12}\s+dual\b/.test(n);
-  const cleaned = n.replace(/b\.?\s?tech\s*\+\s*m\.?\s?tech/g, " ");
-  const degrees: string[] = [];
-  if (exclusive && /\bb\.?\s?tech\b/.test(cleaned)) degrees.push("B.Tech");
-  if (exclusive && (/\bb\.?\s?s\.?\b/.test(n) || /\bbs\b/.test(n))) degrees.push("B.S.");
-  if (exclusive && /\bb\.?\s?arch\b/.test(n)) degrees.push("B.Arch");
-  const programTypes = noDual || degrees.length > 0 ? ["Single Degree"] : null;
-  const label = degrees.length > 0 ? `${degrees.join("/").replace(/\./g, "")}-only` : programTypes ? "single-degree-only" : null;
-  return {
-    degrees: degrees.length > 0 ? degrees : null,
-    programTypes,
-    label,
-  };
-}
-
 export type GroundedContext = {
+  intent: Intent;
   rank: number | null;
   seatType: string;
   gender: GenderFilter;
-  genderStated: boolean;
-  needsGender: boolean;
-  preference: string | null;
   year: number;
   round: number;
-  totalMatchingRows: number;
+  needsRank: boolean;
+  needsGender: boolean;
+  // Filters that came from chat rather than the page, phrased for the answer.
+  branchLabel: string | null;
+  degreeLabel: string | null;
+  instituteLabel: string | null;
+  filterSummary: string | null;
+  // Set when a stated preference matched nothing at all, which is a real
+  // answer ("no physics options at this rank") and must not be silently
+  // widened back to every branch.
+  preferenceEmpty: boolean;
   includedRows: IncludedRow[];
-  truncated: boolean;
   stretchRows: StretchRow[];
+  nearestAbove: StretchRow[];
+  coverage: Coverage;
   facts: FactCitation[];
   interpretation: string;
-  isGreeting: boolean;
+  datasetsAvailable: string[];
 };
 
-// Intent gate: greetings and small talk carry no question, so they get no
-// grounding data. This is what keeps "Hi" to one line without scripting
-// answers: with no rows/facts injected, there is nothing to dump.
-// Anything mentioning a rank, category, college, branch or topic is counselling.
-const COUNSELLING_SIGNAL =
-  /\b(jee|advanced|iit|rank|crl|air|cutoff|closing|opening|college|branch|campus|placement|package|ctc|salary|median|average|fee|tuition|curriculum|syllabus|hostel|mess|gender|male|female|category|open|obc|ews|sc\b|st\b|pwd|general|option|options|admission|seat|compare|eligible|cse|computer|electrical|mechanical|civil|chemical|aerospace|engineering|science|startup|incubat|research|faculty|fests?|clubs?)\b|\d{2,7}/i;
-
-const GREETING_PATTERN =
-  /^(hi+|hey+|hello+|namaste|yo|sup|good\s?(morning|afternoon|evening|day)|how\s?are\s?you|howdy|hais?)[\s!.,?]*$/i;
-
-export function isGreetingLike(message: string) {
-  const text = message.trim();
-  if (!text || text.length > 140) return false;
-  if (COUNSELLING_SIGNAL.test(text)) return false;
-  return GREETING_PATTERN.test(text.replace(/\s+/g, " "));
-}
-
-const MAX_ROWS = 60;
-const MAX_FACTS = 12;
+// Rows are handed to the model as compact pipe-delimited lines rather than
+// pretty JSON. The old builder spent ~21k characters on 60 rows; the same
+// budget now carries every row a student is realistically choosing between,
+// which is what stops the model inventing or omitting options.
+const MAX_ROWS = 140;
+const MAX_FACTS = 8;
+const MAX_STRETCH = 6;
 
 type SupabaseCutoffRow = {
   id: string;
@@ -153,52 +143,6 @@ function parsePositiveInteger(value?: string | null) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-function allUserText(messages: AiChatMessage[]) {
-  return messages
-    .filter((m) => m.role === "user")
-    .map((m) => m.content)
-    .join("\n");
-}
-
-export function rankFromMessage(message: string) {
-  const rankPhrase = message.match(/\b(?:rank|crl|air)\D{0,20}(\d[\d,\s]{0,8})\b/i);
-  if (rankPhrase) return parsePositiveInteger(rankPhrase[1]);
-  const normalized = message.toLowerCase();
-  const looksRanky =
-    /\b(got|scored|score|eligible|option|options|college|colleges|get|admission|seat)\b/.test(normalized) ||
-    /\b(category|male|female|gender|open|general|obc|ews|sc|st|pwd)\b/.test(normalized);
-  const broad = message.match(/\b(\d{2,6})\b/);
-  return broad && looksRanky ? parsePositiveInteger(broad[1]) : null;
-}
-
-function seatTypeFromMessage(message: string) {
-  const n = message.toLowerCase();
-  if (/\bobc\b|\bobc[-\s]?ncl\b/.test(n)) return n.includes("pwd") ? "OBC-NCL (PwD)" : "OBC-NCL";
-  if (/\bews\b/.test(n)) return n.includes("pwd") ? "EWS (PwD)" : "EWS";
-  if (/\bsc\b/.test(n)) return n.includes("pwd") ? "SC (PwD)" : "SC";
-  if (/\bst\b/.test(n)) return n.includes("pwd") ? "ST (PwD)" : "ST";
-  if (/\bopen\b|\bcrl\b|\bgeneral\b/.test(n)) return n.includes("pwd") ? "OPEN (PwD)" : "OPEN";
-  return null;
-}
-
-function genderFromMessage(message: string): GenderFilter | null {
-  const n = message.toLowerCase();
-  if (/\bfemale\b|\bgirl\b|\bwomen\b|\bwoman\b/.test(n)) return "Female";
-  if (/\bmale\b|\bboy\b|\bgender[-\s]?neutral\b/.test(n)) return "Male";
-  return null;
-}
-
-function yearFromMessage(message: string) {
-  const m = message.match(/\b(202[4-9])\b/);
-  return m ? Number(m[1]) : null;
-}
-
-function roundFromMessage(message: string) {
-  const m = message.match(/\bround\s*(\d{1,2})\b/i);
-  if (m) return Number(m[1]);
-  return null;
-}
-
 async function loadCutoffRows(seatType: string, gender: GenderFilter, year: number, round: number) {
   const josaaGender = toJosaaGender(gender);
   const supabase = createServerSupabaseClient();
@@ -222,50 +166,160 @@ async function loadCutoffRows(seatType: string, gender: GenderFilter, year: numb
   }
   const rows = await loadLocalJeeAdvancedCutoffs();
   return rows
-    .filter((r) => r.year === year)
-    .filter((r) => r.round === round)
-    .filter((r) => r.seatType === seatType)
-    .filter((r) => r.gender === josaaGender)
-    .filter((r) => !r.isPreparatory);
+    .filter((row) => row.year === year)
+    .filter((row) => row.round === round)
+    .filter((row) => row.seatType === seatType)
+    .filter((row) => row.gender === josaaGender)
+    .filter((row) => !row.isPreparatory);
 }
 
 const TOPIC_KEYWORDS: Record<string, string[]> = {
-  placements: ["placement", "package", "median", "average", "ctc", "salary", "offer", "recruit"],
-  fees: ["fee", "fees", "tuition", "waiver", "mcm", "scholarship", "mess", "hostel charge"],
-  rules: ["branch change", "branch-change", "grading", "cgpa", "minor", "honor", "double major", "rulebook", "curriculum", "syllabus"],
-  support: ["counsell", "mental", "gender", "pwd", "diversity", "ragging", "support"],
+  placements: ["placement", "package", "median", "average", "ctc", "salary", "offer", "recruit", "intern", "job"],
+  fees: ["fee", "fees", "tuition", "waiver", "mcm", "scholarship", "mess", "hostel"],
+  rules: ["branch change", "branch-change", "grading", "cgpa", "minor", "honor", "honour", "double major", "rulebook", "curriculum", "syllabus", "academic"],
+  support: ["counsell", "mental", "wellness", "pwd", "diversity", "ragging", "support", "inclusion"],
   startup: ["startup", "incubat", "e-cell", "ecell", "entrepreneur", "e-summit"],
-  media: ["campus life", "hostel life", "student media", "insight", "fifth estate", "watch out"],
-  counselling: ["josaa", "round", "seat matrix", "supernumerary", "cutoff", "closing rank", "business rule"],
+  media: ["campus life", "hostel life", "student media", "insight", "fifth estate", "watch out", "life at", "how is"],
+  counselling: ["josaa", "csab", "round", "seat matrix", "supernumerary", "business rule", "float", "freeze", "slide", "choice filling", "willingness", "document verification", "top 20 percentile"],
 };
 
 function detectTopics(text: string) {
-  const n = text.toLowerCase();
+  const normalized = text.toLowerCase();
   return Object.entries(TOPIC_KEYWORDS)
-    .filter(([, kws]) => kws.some((k) => n.includes(k)))
+    .filter(([, keywords]) => keywords.some((keyword) => normalized.includes(keyword)))
     .map(([topic]) => topic);
-}
-
-function detectInstitutes(text: string) {
-  const n = text.toLowerCase();
-  const names = [
-    "bombay", "delhi", "madras", "kanpur", "kharagpur", "roorkee", "guwahati", "hyderabad",
-    "bhu", "varanasi", "indore", "dhanbad", "ism", "patna", "gandhinagar", "mandi",
-    "jodhpur", "ropar", "bhubaneswar", "jammu", "tirupati", "palakkad", "bhilai", "dharwad", "goa",
-  ];
-  return names.filter((name) => n.includes(name));
 }
 
 async function loadAllFacts(): Promise<CollegeFactSeed[]> {
   const supabase = createServerSupabaseClient();
   if (supabase) {
-    const { data, error } = await supabase
-      .from("college_facts")
-      .select("institute, topic, subtype, claim, source_url, source_title, publisher, published_ay, format, coverage")
-      .limit(2000);
-    if (!error && data && data.length > 0) return data as CollegeFactSeed[];
+    try {
+      // PostgREST caps responses at 1000 rows regardless of .limit(), so this
+      // reads through fetchAllRows like every other multi-row query.
+      const data = await fetchAllRows<CollegeFactSeed>(() =>
+        supabase
+          .from("college_facts")
+          .select("institute, topic, subtype, claim, source_url, source_title, publisher, published_ay, format, coverage")
+          .order("institute", { ascending: true }),
+      );
+      if (data.length > 0) return data;
+    } catch {
+      // Fall through to the bundled seed rather than failing the whole answer.
+    }
   }
   return collegeSeedFacts;
+}
+
+// Facts are only worth injecting when the student asked something they can
+// answer. The old builder defaulted to placements+counselling on every turn,
+// so a pure cutoff question came back decorated with placement-portal links
+// that had nothing to do with it — citation noise reads as authority.
+async function selectFacts(intent: Intent, text: string): Promise<FactCitation[]> {
+  const topics = detectTopics(text);
+  const institutes = mentionedInstitutes(text);
+  if (intent === "cutoff_options" && topics.length === 0) return [];
+  if (intent === "greeting" || intent === "identity" || intent === "out_of_scope") return [];
+  if (topics.length === 0 && institutes.length === 0) return [];
+
+  const all = await loadAllFacts();
+  const topicSet = new Set(intent === "process" && topics.length === 0 ? ["counselling"] : topics);
+
+  const scored = all
+    .map((fact) => {
+      let score = 0;
+      if (topicSet.has(fact.topic)) score += 3;
+      if (institutes.includes(fact.institute)) score += 3;
+      if (fact.institute === "JoSAA" && topicSet.has("counselling")) score += 2;
+      if (fact.coverage === "verified") score += 1;
+      if (fact.coverage === "not_published" || fact.coverage === "missing") score -= 1;
+      return { fact, score };
+    })
+    // A fact must match the topic or the named institute, not merely exist.
+    .filter((entry) => entry.score >= 3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_FACTS);
+
+  return scored.map((entry, index) => ({ ...entry.fact, ref: index + 1 }));
+}
+
+function band(closingRank: number, rank: number): IncludedRow["band"] {
+  const margin = closingRank - rank;
+  if (margin <= rank * 0.08) return "tight";
+  if (margin <= rank * 0.4) return "likely";
+  return "safe";
+}
+
+function toIncludedRow(row: CutoffResult, rank: number | null): IncludedRow {
+  const meta = programMeta(row.program);
+  return {
+    institute: shortenInstituteName(row.institute),
+    branch: programShortName(row.program),
+    openingRank: row.openingRankNumber,
+    closingRank: row.closingRankNumber,
+    degree: meta.degree,
+    duration: meta.duration,
+    courseType: meta.programType,
+    margin: rank ? row.closingRankNumber - rank : 0,
+    band: rank ? band(row.closingRankNumber, rank) : "likely",
+  };
+}
+
+// Institute-fair selection. Sorting by the display order and cutting at N —
+// what the old builder did — deleted every institute past the cut, so a
+// student was answered as if 15 IITs did not exist. Round-robin instead:
+// every institute contributes its most competitive option before any
+// institute contributes a second one.
+function selectRows(rows: CutoffResult[], rank: number | null, limit: number) {
+  const byInstitute = new Map<string, CutoffResult[]>();
+  for (const row of rows) {
+    const key = shortenInstituteName(row.institute);
+    const bucket = byInstitute.get(key);
+    if (bucket) bucket.push(row);
+    else byInstitute.set(key, [row]);
+  }
+  for (const bucket of byInstitute.values()) {
+    bucket.sort((a, b) => a.closingRankNumber - b.closingRankNumber);
+  }
+
+  const queues = [...byInstitute.entries()].sort(
+    (a, b) => (a[1][0]?.closingRankNumber ?? 0) - (b[1][0]?.closingRankNumber ?? 0),
+  );
+  const picked: CutoffResult[] = [];
+  for (let depth = 0; picked.length < limit; depth += 1) {
+    let addedThisPass = false;
+    for (const [, bucket] of queues) {
+      if (depth >= bucket.length) continue;
+      picked.push(bucket[depth]);
+      addedThisPass = true;
+      if (picked.length >= limit) break;
+    }
+    if (!addedThisPass) break;
+  }
+
+  return {
+    picked: picked.map((row) => toIncludedRow(row, rank)).sort((a, b) => a.closingRank - b.closingRank),
+    institutesAvailable: byInstitute.size,
+    institutesIncluded: new Set(picked.map((row) => shortenInstituteName(row.institute))).size,
+  };
+}
+
+function toStretchRow(row: CutoffResult, rank: number): StretchRow {
+  return {
+    institute: shortenInstituteName(row.institute),
+    branch: programShortName(row.program),
+    closingRank: row.closingRankNumber,
+    shortfall: rank - row.closingRankNumber,
+  };
+}
+
+async function availableDatasets(): Promise<string[]> {
+  try {
+    const rows = await loadLocalJeeAdvancedCutoffs();
+    const keys = new Set(rows.map((row) => `${row.year} R${row.round}`));
+    return [...keys].sort();
+  } catch {
+    return [];
+  }
 }
 
 export async function buildGroundedContext(
@@ -273,158 +327,150 @@ export async function buildGroundedContext(
   pageState: PageState,
   messages: AiChatMessage[] = [],
 ): Promise<GroundedContext> {
-  const text = allUserText(messages) || lastUserMessage;
-  const messageRank = rankFromMessage(text);
-  const pageRank = parsePositiveInteger(pageState.rank);
-  const rank = messageRank ?? pageRank;
+  const history = messages.length > 0 ? messages : [{ role: "user" as const, content: lastUserMessage }];
+  const slots: Slots = resolveSlots(history);
 
-  const seatRaw = seatTypeFromMessage(text) ?? pageState.seatType ?? "OPEN";
+  const pageRank = parsePositiveInteger(pageState.rank);
+  const rank = slots.rank ?? pageRank;
+
+  const seatRaw = slots.seatType ?? pageState.seatType ?? "OPEN";
   const seatType = seatTypes.includes(seatRaw) ? seatRaw : "OPEN";
-  const statedGender = genderFromMessage(text);
-  const gender = statedGender ?? pageState.gender ?? "Male";
-  // Gender picks the entire seat pool (Female-only vs Gender-Neutral), so a
-  // defaulted gender must never silently answer a rank question. Ask instead.
-  // Page rank present means the student sees their filters in the UI, so the
-  // visible default counts as stated there; incognito/fresh sessions ask.
-  const genderStated = Boolean(statedGender) || pageRank !== null;
+  const gender = slots.gender ?? pageState.gender ?? "Male";
 
   const pageYear = Number(pageState.year);
   const pageRound = Number(pageState.round);
-  const year = yearFromMessage(text) ?? (Number.isInteger(pageYear) && pageYear > 0 ? pageYear : 2026);
-  const round = roundFromMessage(text) ?? (Number.isInteger(pageRound) && pageRound > 0 ? pageRound : 5);
+  const year = slots.year ?? (Number.isInteger(pageYear) && pageYear > 0 ? pageYear : 2026);
+  const round = slots.round ?? (Number.isInteger(pageRound) && pageRound > 0 ? pageRound : 5);
 
-  // Greeting/small talk: no question asked, so load nothing. The model gets
-  // an empty evidence set and a brevity instruction instead of 60 rows.
-  if (!rank && isGreetingLike(lastUserMessage)) {
-    return {
-      rank,
-      seatType,
-      gender,
-      genderStated,
-      needsGender: false,
-      year,
-      round,
-      totalMatchingRows: 0,
-      includedRows: [],
-      truncated: false,
-      stretchRows: [],
-      facts: [],
-      interpretation: `rank=not provided, category=${seatType}, gender=${gender}, year=${year}, round=${round}`,
-      isGreeting: true,
-      preference: null,
-    };
+  const intent = classifyIntent(lastUserMessage, rank !== null);
+
+  // Gender picks the entire seat pool (Female-only vs Gender-Neutral) and the
+  // closing ranks differ completely, so a defaulted gender must never quietly
+  // answer a rank question. A rank typed into the page counts as stated,
+  // because the student can see the gender toggle next to it.
+  const genderStated = slots.gender !== null || pageRank !== null;
+  const needsGender = intent === "cutoff_options" && rank !== null && !genderStated;
+  const needsRank = intent === "cutoff_options" && rank === null;
+
+  const branchLabel = slots.branch?.label ?? null;
+  const filterSummary =
+    [branchLabel, slots.degreeLabel, slots.instituteLabel].filter(Boolean).join(", ") || null;
+
+  const interpretation = [
+    `rank=${rank ? formatRank(rank) : "not provided"}`,
+    `category=${seatType}`,
+    `gender=${needsGender ? "unknown (asking)" : gender}`,
+    `year=${year}`,
+    `round=${round}`,
+    filterSummary ? `filters=${filterSummary}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const emptyCoverage: Coverage = {
+    totalInReach: 0,
+    included: 0,
+    institutesIncluded: 0,
+    institutesAvailable: 0,
+    instituteCoverageComplete: true,
+  };
+
+  const base: GroundedContext = {
+    intent,
+    rank,
+    seatType,
+    gender,
+    year,
+    round,
+    needsRank,
+    needsGender,
+    branchLabel,
+    degreeLabel: slots.degreeLabel,
+    instituteLabel: slots.instituteLabel,
+    filterSummary,
+    preferenceEmpty: false,
+    includedRows: [],
+    stretchRows: [],
+    nearestAbove: [],
+    coverage: emptyCoverage,
+    facts: [],
+    interpretation,
+    datasetsAvailable: [],
+  };
+
+  // Turns that need no evidence get none. An empty evidence set is what keeps
+  // a greeting to one line and an out-of-scope question to a short redirect,
+  // instead of shipping 6k tokens of cutoff rows the answer will never use.
+  if (intent === "greeting" || intent === "identity" || intent === "out_of_scope") {
+    return base;
+  }
+  if (needsGender || needsRank) {
+    return base;
   }
 
-  // Rank given but gender defaulted and invisible to the student: ask for
-  // gender rather than answering from the wrong seat pool. Empty evidence
-  // set, same as greetings.
-  if (rank && !genderStated) {
-    return {
-      rank,
-      seatType,
-      gender,
-      genderStated,
-      needsGender: true,
-      year,
-      round,
-      totalMatchingRows: 0,
-      includedRows: [],
-      truncated: false,
-      stretchRows: [],
-      facts: [],
-      interpretation: `rank=${formatRank(rank)}, category=${seatType}, gender=unknown (asked), year=${year}, round=${round}`,
-      isGreeting: false,
-      preference: null,
-    };
+  const conversationText = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .join("\n");
+  const facts = await selectFacts(intent, `${lastUserMessage}\n${conversationText}`);
+
+  if (intent === "process" || (intent === "college_info" && rank === null)) {
+    return { ...base, facts, datasetsAvailable: await availableDatasets() };
   }
 
   const rows = await loadCutoffRows(seatType, gender, year, round);
 
-  const institutes = pageState.selectedInstitutes ?? [];
+  // A preference stated in chat replaces the page multi-select, because it is
+  // the more recent intent; page selections still apply when chat is silent.
+  const institutes = slots.institutes ?? pageState.selectedInstitutes ?? [];
   const programs = pageState.selectedPrograms ?? [];
-  const degrees = pageState.selectedDegrees ?? [];
+  const degrees = slots.degrees ?? pageState.selectedDegrees ?? [];
   const durations = pageState.selectedDurations ?? [];
-  const types = pageState.selectedProgramTypes ?? [];
+  const programTypes = slots.programTypes ?? pageState.selectedProgramTypes ?? [];
 
-  const msgPref = extractDegreePreference(text);
-  const effectiveDegrees = msgPref.degrees ?? degrees;
-  const effectiveTypes = msgPref.programTypes ?? types;
+  const filtered = rows
+    .filter((row) => (institutes.length ? institutes.includes(shortenInstituteName(row.institute)) || institutes.includes(row.institute) : true))
+    .filter((row) => (programs.length ? programs.includes(row.program) : true))
+    .filter((row) => (degrees.length ? degrees.includes(programMeta(row.program).degree) : true))
+    .filter((row) => (durations.length ? durations.includes(programMeta(row.program).duration) : true))
+    .filter((row) => (programTypes.length ? programTypes.includes(programMeta(row.program).programType) : true))
+    .filter((row) => (slots.branch ? slots.branch.matches(row.program) : true));
 
-  const selectionFiltered = rows
-    .filter((r) => (institutes.length ? institutes.includes(r.institute) : true))
-    .filter((r) => (programs.length ? programs.includes(r.program) : true))
-    .filter((r) => {
-      if (!effectiveDegrees.length) return true;
-      return effectiveDegrees.includes(programMeta(r.program).degree);
-    })
-    .filter((r) => {
-      if (!durations.length) return true;
-      return durations.includes(programMeta(r.program).duration);
-    })
-    .filter((r) => {
-      if (!effectiveTypes.length) return true;
-      return effectiveTypes.includes(programMeta(r.program).programType);
-    });
+  const preferenceEmpty = filtered.length === 0 && rows.length > 0;
 
-  const filtered = selectionFiltered
-    .filter((r) => (rank ? r.closingRankNumber >= rank : true))
-    .sort(compareCutoffByInstituteAndProgram);
+  const inReach = rank ? filtered.filter((row) => row.closingRankNumber >= rank) : filtered;
+  const { picked, institutesAvailable, institutesIncluded } = selectRows(inReach, rank, MAX_ROWS);
 
-  const includedRows: IncludedRow[] = filtered.slice(0, MAX_ROWS).map((r) => {
-    const meta = programMeta(r.program);
-    return {
-      institute: shortenInstituteName(r.institute),
-      branch: programShortName(r.program),
-      openingRank: r.openingRankNumber,
-      closingRank: r.closingRankNumber,
-      degree: meta.degree,
-      duration: meta.duration,
-      courseType: meta.programType,
-    };
-  });
-
-  const allFacts = await loadAllFacts();
-  const topics = detectTopics(`${lastUserMessage} ${text}`);
-  const institutesMentioned = detectInstitutes(`${lastUserMessage} ${text}`);
-  const topicSet = new Set(topics.length ? topics : ["placements", "counselling"]);
-
-  const scored = allFacts
-    .map((f) => {
-      let score = 0;
-      if (topicSet.has(f.topic)) score += 2;
-      if (f.topic === "counselling") score += 1;
-      const inst = f.institute.toLowerCase();
-      if (institutesMentioned.some((m) => inst.includes(m) || m.includes(inst.split(" ").pop() ?? ""))) score += 3;
-      if (f.coverage === "verified") score += 1;
-      if (f.coverage === "not_published" || f.coverage === "missing") score -= 1;
-      return { f, score };
-    })
-    .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_FACTS);
-
-  const facts: FactCitation[] = scored.map((s, i) => ({ ...s.f, ref: i + 1 }));
-
-  const rankText = rank ? formatRank(rank) : "not provided";
-  const interpretation = `rank=${rankText}, category=${seatType}, gender=${gender}, year=${year}, round=${round}${msgPref.label ? `, pref=${msgPref.label}` : ""}`;
-
-  // Near misses: options that closed just below the student's rank. Cutoffs
-  // shift year to year, so a miss by a hair is worth one labeled line —
-  // never mixed with within-reach options.
   let stretchRows: StretchRow[] = [];
+  let nearestAbove: StretchRow[] = [];
   if (rank) {
-    const band = Math.max(100, Math.round(rank * 0.03));
-    stretchRows = selectionFiltered
-      .filter((r) => r.closingRankNumber < rank && r.closingRankNumber >= rank - band)
-      .sort((a, b) => b.closingRankNumber - a.closingRankNumber)
-      .slice(0, 5)
-      .map((r) => ({
-        institute: shortenInstituteName(r.institute),
-        branch: programShortName(r.program),
-        closingRank: r.closingRankNumber,
-        shortfall: rank - r.closingRankNumber,
-      }));
+    const below = filtered
+      .filter((row) => row.closingRankNumber < rank)
+      .sort((a, b) => b.closingRankNumber - a.closingRankNumber);
+    const window = Math.max(150, Math.round(rank * 0.05));
+    stretchRows = below
+      .filter((row) => row.closingRankNumber >= rank - window)
+      .slice(0, MAX_STRETCH)
+      .map((row) => toStretchRow(row, rank));
+    // When nothing is in reach at all, the honest answer is the closest
+    // misses — otherwise the student gets an empty list and no bearings.
+    nearestAbove = inReach.length === 0 ? below.slice(0, MAX_STRETCH).map((row) => toStretchRow(row, rank)) : [];
   }
 
-  return { rank, seatType, gender, genderStated, needsGender: false, year, round, totalMatchingRows: filtered.length, includedRows, truncated: filtered.length > includedRows.length, stretchRows, facts, interpretation, isGreeting: false, preference: msgPref.label };
+  return {
+    ...base,
+    preferenceEmpty,
+    includedRows: picked,
+    stretchRows,
+    nearestAbove,
+    coverage: {
+      totalInReach: inReach.length,
+      included: picked.length,
+      institutesIncluded,
+      institutesAvailable,
+      instituteCoverageComplete: institutesIncluded === institutesAvailable,
+    },
+    facts,
+    datasetsAvailable: [],
+  };
 }
