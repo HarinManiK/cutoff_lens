@@ -95,6 +95,14 @@ const checks: Check[] = [
     },
   },
   {
+    name: "degree wording is not mistaken for a branch filter",
+    run: async () => {
+      const ctx = await ask(["2700 rank, sc, male", "what are my best picks? I just want a BTech degree"]);
+      if (ctx.branchLabel !== null) return `bogus branch filter ${ctx.branchLabel}`;
+      return ctx.coverage.totalInReach > 0 ? null : "degree filter wiped every row";
+    },
+  },
+  {
     name: "intents route correctly",
     run: () => {
       const cases: Array<[string, boolean, string]> = [
