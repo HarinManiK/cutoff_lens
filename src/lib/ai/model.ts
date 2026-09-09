@@ -25,7 +25,7 @@ export type ModelRequest = {
   latestUserMessage: string;
 };
 
-type Provider = "nvidia" | "gemini";
+type Provider = "nvidia" | "gemini" | "openrouter";
 
 // The route runs under maxDuration 60, and an attempt plus a retry has to fit
 // inside it with room to still write the fallback answer. A stalled upstream
@@ -41,14 +41,18 @@ export function activeProvider(): Provider | null {
   const configured = (process.env.AI_PROVIDER ?? "").toLowerCase();
   if (configured === "gemini") return process.env.GEMINI_API_KEY ? "gemini" : null;
   if (configured === "nvidia") return process.env.NVIDIA_API_KEY ? "nvidia" : null;
+  if (configured === "openrouter") return process.env.OPENROUTER_API_KEY ? "openrouter" : null;
   if (process.env.NVIDIA_API_KEY) return "nvidia";
+  if (process.env.OPENROUTER_API_KEY) return "openrouter";
   if (process.env.GEMINI_API_KEY) return "gemini";
   return null;
 }
 
 export function activeModelName(provider: Provider) {
   if (process.env.AI_MODEL) return process.env.AI_MODEL;
-  return provider === "gemini" ? "gemini-2.0-flash" : "moonshotai/kimi-k3";
+  if (provider === "gemini") return "gemini-2.0-flash";
+  if (provider === "openrouter") return "poolside/laguna-s-2.1:free";
+  return "moonshotai/kimi-k3";
 }
 
 export function isAiConfigured() {
@@ -209,6 +213,45 @@ async function streamGemini(request: ModelRequest, onToken: (text: string) => vo
   return { ok: true, model, text };
 }
 
+// OpenRouter speaks the same OpenAI-compatible SSE dialect as NVIDIA, so the
+// shared reader and delta extractor apply. It additionally asks for a referer
+// and title identifying the calling app.
+async function streamOpenRouter(request: ModelRequest, onToken: (text: string) => void, signal: AbortSignal): Promise<StreamResult> {
+  const model = activeModelName("openrouter");
+  const { system, prior, grounded } = composeTurns(request);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://cutofflens.vercel.app";
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? ""}`,
+      "HTTP-Referer": siteUrl,
+      "X-Title": "Cutoff Lens",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: system },
+        ...prior.map((turn) => ({ role: turn.role, content: turn.content })),
+        { role: "user", content: grounded },
+      ],
+      temperature: TEMPERATURE,
+      max_tokens: MAX_OUTPUT_TOKENS,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok || !response.body) {
+    return { ok: false, message: describeStatus(response.status), status: response.status || 502 };
+  }
+  const text = await readSse(response.body, extractOpenAiDelta, onToken);
+  if (!text.trim()) {
+    return { ok: false, message: "Model produced no answer text", status: 502 };
+  }
+  return { ok: true, model, text };
+}
+
 async function attempt(
   provider: Provider,
   request: ModelRequest,
@@ -234,9 +277,9 @@ async function attempt(
   };
 
   try {
-    return provider === "gemini"
-      ? await streamGemini(request, track, controller.signal)
-      : await streamNvidia(request, track, controller.signal);
+    if (provider === "gemini") return await streamGemini(request, track, controller.signal);
+    if (provider === "openrouter") return await streamOpenRouter(request, track, controller.signal);
+    return await streamNvidia(request, track, controller.signal);
   } catch (error) {
     const aborted = error instanceof Error && error.name === "AbortError";
     return {
