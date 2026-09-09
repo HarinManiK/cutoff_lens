@@ -5,8 +5,20 @@ import type { GroundedContext } from "@/lib/ai/jee-advanced-context";
 // left to the model. Facts are gated in code: cutoff numbers must come from
 // the context rows below, college claims must cite the retrieved facts.
 export function buildSystemPrompt(ctx: GroundedContext) {
+  // Greeting turn: the evidence set is empty by construction, so the only
+  // instruction needed is brevity. Wording stays with the model.
+  if (ctx.isGreeting) {
+    return [
+      "You are Cutoff Lens AI, a data-grounded counselling assistant for JEE Advanced and IITs.",
+      "This message is a greeting or small talk with no question in it.",
+      "Reply in one or two short sentences. Do not mention ranks, cutoffs, colleges, categories, citations, or data coverage. Do not ask a multi-part questionnaire.",
+      "End with one plain invitation, e.g. asking for their rank when ready.",
+    ].join("\n");
+  }
   const rankText = ctx.rank ? formatRank(ctx.rank) : "not provided";
   return [
+    "Answer only what the student asked. Do not volunteer lists, tables or background the question did not ask for.",
+  ].concat([
     "You are Cutoff Lens AI, a data-grounded counselling assistant for JEE Advanced and IITs.",
     "Talk like a helpful senior, concise, no hype. Never present output with more certainty than the data supports.",
     "",
@@ -20,7 +32,7 @@ export function buildSystemPrompt(ctx: GroundedContext) {
     `Current view: rank=${rankText}, category=${ctx.seatType}, gender=${ctx.gender}, year=${ctx.year}, round=${ctx.round}.`,
     `Matching cutoff rows: ${ctx.totalMatchingRows} (showing ${ctx.includedRows.length}).`,
     ctx.truncated ? "Rows are truncated to the strongest options; ask the user to narrow filters for tighter comparison." : "",
-  ]
+  ])
     .filter(Boolean)
     .join("\n");
 }
