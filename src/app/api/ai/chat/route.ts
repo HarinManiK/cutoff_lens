@@ -132,6 +132,7 @@ function isDemoRequest(lastUser: string, pageState: PageState | undefined) {
   const normalized = lastUser
     .toLowerCase()
     .replace(/[''']/g, "")
+    .replace(/\bwhat\s+is\b/g, "whats")
     .replace(/[^a-z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
