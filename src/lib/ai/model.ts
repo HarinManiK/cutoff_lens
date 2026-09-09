@@ -72,6 +72,79 @@ async function callGemini(system: string, dataMessage: string, userMessage: stri
   }
 }
 
+// Streaming variant for the NVIDIA OpenAI-compatible endpoint. Forwards
+// token deltas to onToken as they arrive; resolves with the model name.
+// Anything else (no key, non-OK status, network error) resolves instead of
+// throwing so the route can fall back to the database answer.
+export async function callNvidiaStream(
+  system: string,
+  dataMessage: string,
+  userMessage: string,
+  onToken: (text: string) => void,
+): Promise<{ ok: true; model: string } | { ok: false; message: string; status: number }> {
+  const apiKey = process.env.NVIDIA_API_KEY ?? "";
+  const model = process.env.AI_MODEL ?? "moonshotai/kimi-k3";
+  if (!apiKey) return { ok: false, message: "AI is not configured.", status: 503 };
+  try {
+    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: `${dataMessage}\n\nStudent question:\n${userMessage}` },
+        ],
+        temperature: 0.4,
+        max_tokens: 1200,
+        stream: true,
+      }),
+    });
+    if (!response.ok || !response.body) {
+      return { ok: false, message: `NVIDIA model error ${response.status}`, status: response.status };
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let gotText = false;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+      for (const chunk of chunks) {
+        for (const line of chunk.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const json = JSON.parse(payload) as {
+              choices?: Array<{ delta?: { content?: string } }>;
+            };
+            const text = json.choices?.[0]?.delta?.content ?? "";
+            if (text) {
+              gotText = true;
+              onToken(text);
+            }
+          } catch {
+            // Ignore keep-alive or partial frames.
+          }
+        }
+      }
+    }
+    if (!gotText) return { ok: false, message: "Empty model response", status: 502 };
+    return { ok: true, model };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Model call failed", status: 503 };
+  }
+}
+
 export async function callModel(
   system: string,
   dataMessage: string,

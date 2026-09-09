@@ -6,7 +6,7 @@ import {
 } from "@/lib/ai/jee-advanced-context";
 import { buildDataMessage, buildSystemPrompt } from "@/lib/ai/prompt";
 import { buildDatabaseAnswer } from "@/lib/ai/answer-fallback";
-import { callModel } from "@/lib/ai/model";
+import { callModel, callNvidiaStream } from "@/lib/ai/model";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,7 @@ type ChatRequest = {
   exam?: string;
   messages?: AiChatMessage[];
   pageState?: PageState;
+  stream?: boolean;
 };
 
 function sanitizeMessages(messages: AiChatMessage[]) {
@@ -49,6 +50,59 @@ export async function POST(request: NextRequest) {
       publishedAy: f.published_ay,
       coverage: f.coverage,
     }));
+
+    // Streaming path: meta (citations + interpreted filters) first so the
+    // client can show progress, then live tokens, then done. Any model
+    // failure falls back to the database answer inside the same stream.
+    if (body?.stream && process.env.NVIDIA_API_KEY) {
+      const encoder = new TextEncoder();
+      const system = buildSystemPrompt(ctx);
+      const dataMessage = buildDataMessage(ctx);
+      const context = {
+        rank: ctx.rank,
+        seatType: ctx.seatType,
+        gender: ctx.gender,
+        year: ctx.year,
+        round: ctx.round,
+        totalMatchingRows: ctx.totalMatchingRows,
+      };
+      const send = (controller: ReadableStreamDefaultController, event: string, data: unknown) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            send(controller, "meta", { citations, context });
+            const result = await callNvidiaStream(system, dataMessage, lastUser, (text) =>
+              send(controller, "token", { text }),
+            );
+            if (result.ok) {
+              send(controller, "done", { model: result.model });
+            } else {
+              send(controller, "message", {
+                message: buildDatabaseAnswer(ctx),
+                model: "database-only-fallback",
+                fallbackReason: result.message,
+              });
+            }
+          } catch {
+            send(controller, "message", {
+              message: buildDatabaseAnswer(ctx),
+              model: "database-only-fallback",
+            });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    }
 
     const result = await callModel(buildSystemPrompt(ctx), buildDataMessage(ctx), lastUser);
     if (!result) {
