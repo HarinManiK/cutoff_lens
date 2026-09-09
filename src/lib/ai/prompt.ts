@@ -1,58 +1,193 @@
 import { formatRank } from "@/lib/display";
-import type { GroundedContext } from "@/lib/ai/jee-advanced-context";
+import type { GroundedContext, IncludedRow } from "@/lib/ai/jee-advanced-context";
 
-// Minimal load-bearing rules. Presentation, tone and comparison depth are
-// left to the model. Facts are gated in code: cutoff numbers must come from
-// the context rows below, college claims must cite the retrieved facts.
+const IDENTITY_LINE =
+  "You are Cutoff Lens AI, a counselling assistant for JEE Advanced and the IITs. You speak like a helpful senior: concise, plain, no hype, no emoji.";
+
+const HONESTY_LINE =
+  "Never present output with more certainty than the data supports. No guaranteed-admission language.";
+
+// One prompt per intent. The old prompt shipped the same wall of rules on
+// every turn, including greetings, which is how "hi" ended up negotiating
+// with seven load-bearing clauses about PwD rank types.
 export function buildSystemPrompt(ctx: GroundedContext) {
-  // Greeting turn: the evidence set is empty by construction, so the only
-  // instruction needed is brevity. Wording stays with the model.
-  if (ctx.isGreeting) {
+  if (ctx.intent === "greeting") {
     return [
-      "You are Cutoff Lens AI, a data-grounded counselling assistant for JEE Advanced and IITs.",
-      "This message is a greeting or small talk with no question in it.",
-      "Reply in one or two short sentences. Do not mention ranks, cutoffs, colleges, categories, citations, or data coverage. Do not ask a multi-part questionnaire.",
-      "End with one plain invitation, e.g. asking for their rank when ready.",
+      IDENTITY_LINE,
+      "This message is a greeting or a thank-you. There is no question in it.",
+      "Reply in one short sentence. Do not mention ranks, cutoffs, colleges, categories, citations or data coverage. Do not ask a multi-part questionnaire.",
+      "You may close with one plain invitation, such as asking for their rank when they are ready.",
     ].join("\n");
   }
-  // Gender unknown: the evidence set is empty by construction. Ask for the
-  // missing slot briefly instead of answering from an assumed seat pool.
+
+  if (ctx.intent === "identity") {
+    return [
+      IDENTITY_LINE,
+      "The student is asking what you are or what you can do.",
+      "Answer in two or three sentences: you read official JoSAA opening/closing ranks for the IITs from this site's database, you can filter by rank, category, gender, year and round, and you can point to official sources for placements, fees and rules.",
+      "Say plainly that you do not predict future cutoffs and that your answers are a better guess, not a prediction. No lists, no citations.",
+    ].join("\n");
+  }
+
+  if (ctx.intent === "out_of_scope") {
+    return [
+      IDENTITY_LINE,
+      "This question is outside what this tool covers. You only have JoSAA cutoff data for the IITs and official links about IIT placements, fees, rules and campus life.",
+      "In one or two sentences, say you cannot help with that here and name what you can do instead. Do not attempt the task. Do not apologise repeatedly.",
+    ].join("\n");
+  }
+
+  if (ctx.needsRank) {
+    return [
+      IDENTITY_LINE,
+      "The student wants options but has not given a rank, and rank decides everything here.",
+      `Known so far: category ${ctx.seatType}, ${ctx.year} Round ${ctx.round}.`,
+      "Ask for their rank in one or two sentences. Mention which rank you need (CRL for OPEN, category rank otherwise). Do not list colleges or cutoffs yet.",
+    ].join("\n");
+  }
+
   if (ctx.needsGender) {
-    const rankText = ctx.rank ? formatRank(ctx.rank) : "not provided";
     return [
-      "You are Cutoff Lens AI, a data-grounded counselling assistant for JEE Advanced and IITs.",
-      `The student gave rank ${rankText} (${ctx.seatType}) but not their gender, and gender decides the seat pool (Female-only vs Gender-Neutral) with completely different closing ranks.`,
-      "Ask for their gender in one or two short sentences. Do not list options, cutoffs, colleges, or citations yet. Do not assume or default it.",
+      IDENTITY_LINE,
+      `The student gave rank ${formatRank(ctx.rank ?? 0)} (${ctx.seatType}) but not their gender.`,
+      "Gender selects the entire seat pool — Female-only versus Gender-Neutral — and the closing ranks differ completely, so answering from a guess would be wrong.",
+      "Ask which pool applies, in one or two sentences. Do not list options, cutoffs, colleges or citations yet. Do not assume or default it.",
     ].join("\n");
   }
-  const rankText = ctx.rank ? formatRank(ctx.rank) : "not provided";
-  return [
-    "Answer only what the student asked. Do not volunteer lists, tables or background the question did not ask for.",
-    "Keep answers tight: at most 10 cutoff options per answer, grouped (strongest, then safest). Offer to narrow instead of listing more.",
-  ].concat([
-    "You are Cutoff Lens AI, a data-grounded counselling assistant for JEE Advanced and IITs.",
-    "Talk like a helpful senior, concise, no hype. Never present output with more certainty than the data supports.",
+
+  if (ctx.intent === "process" || (ctx.intent === "college_info" && ctx.rank === null)) {
+    return [
+      IDENTITY_LINE,
+      HONESTY_LINE,
+      "Answer from the FACTS block only. Cite each claim as [n].",
+      "If no fact covers what was asked, say so plainly and name where it is published (the institute's placement cell or academic office, or the official JoSAA site). Never fill the gap from memory.",
+      "Keep it to a short paragraph or a few bullets.",
+    ].join("\n");
+  }
+
+  // Cutoff answers.
+  const lines = [
+    IDENTITY_LINE,
+    HONESTY_LINE,
     "",
-    "Load-bearing rules:",
-    "1. Cutoff and eligibility claims must use ONLY the cutoff rows provided in this turn. Never use model memory for ranks. Cite year and round.",
-    "2. Every placement, fee, curriculum, support or startup claim must cite a retrieved fact [n] from this turn. If no fact covers it, say what is not published and where to check (official placement cell / academic office).",
-    "3. OPEN uses CRL rank. Other categories use category rank. PwD seat types use PwD rank. Female means Female-only seats. Male means Gender-Neutral seats. Never show preparatory (P) ranks.",
-    "4. State your interpretation first (rank, category, gender, year, round). If the user text conflicts with page state, user text wins and you say so.",
-    "5. No guaranteed admission language. Say these reflect official JoSAA closing ranks for the stated year/round.",
-    "6. A separate stretch list may be provided: options that closed just below the student's rank. Present it ONLY as its own labeled section (missed by N ranks in this data, possible only if cutoffs relax). Never mix stretch options with within-reach options.",
-    "7. If the data message states a degree/type preference (e.g. BTech-only), every cutoff option you list must satisfy it. Never show excluded degree types.",
+    "Rules that decide correctness:",
+    "1. Every rank, college and branch you name must come from the ROWS block in this turn. Never use memory for cutoffs, and never invent a program that is not listed.",
+    "2. The ROWS block is already filtered to this student's category, gender, year and round. Do not re-filter it, second-guess it, or mention rows you cannot see.",
+    "3. Never mention preparatory (P) ranks. They are excluded from the data you were given.",
+    "4. State your reading of the question in one short line first: rank, category, pool, year, round, and any branch or degree filter.",
+    "5. Anything about placements, fees, curriculum, support or startups must cite a [n] from the FACTS block. With no fact, say what is not published and where to check.",
     "",
-    `Current view: rank=${rankText}, category=${ctx.seatType}, gender=${ctx.gender}, year=${ctx.year}, round=${ctx.round}.`,
-    `Matching cutoff rows: ${ctx.totalMatchingRows} (showing ${ctx.includedRows.length}).`,
-    ctx.truncated ? "Rows are truncated to the strongest options; ask the user to narrow filters for tighter comparison." : "",
-  ])
-    .filter(Boolean)
-    .join("\n");
+    "How to shape the answer:",
+    "- Lead with the options that fit what they actually asked. At most 8, grouped as tight (small margin, could shift next year) then comfortable.",
+    "- band=tight means the closing rank is barely above theirs, so it is the risky end, not the best end. band=safe means a wide margin.",
+    "- A lower closing rank means a more competitive seat. Do not call a wide-margin option 'strongest'.",
+    "- Offer to narrow rather than dumping more rows. Do not restate the whole table.",
+    "- STRETCH rows closed *below* their rank. Give them at most one clearly labelled group, and only if they are relevant. Never mix them into the in-reach list.",
+  ];
+
+  if (ctx.filterSummary) {
+    lines.push(
+      `- The student asked for: ${ctx.filterSummary}. Every option you list must satisfy that. If the data has none, say so instead of substituting something else.`,
+    );
+  }
+  if (ctx.preferenceEmpty) {
+    lines.push(
+      `- Nothing in this year/round matches ${ctx.filterSummary ?? "those filters"} for this rank and pool. Say that directly and suggest relaxing one filter. Do not list unrelated branches as if they were the answer.`,
+    );
+  }
+  if (!ctx.coverage.instituteCoverageComplete) {
+    lines.push(
+      `- The ROWS block covers ${ctx.coverage.institutesIncluded} of ${ctx.coverage.institutesAvailable} institutes that have matches. Say the list is partial if the student asks for everything.`,
+    );
+  }
+
+  lines.push(
+    "",
+    `Interpretation for this turn: ${ctx.interpretation}.`,
+    `Within reach in this data: ${ctx.coverage.totalInReach} programs; ${ctx.coverage.included} are listed for you.`,
+  );
+
+  return lines.filter(Boolean).join("\n");
 }
 
-export function buildDataMessage(ctx: GroundedContext) {
+function rowLine(row: IncludedRow, withMargin: boolean) {
   return [
-    "Grounding data. Cutoff rows are the ONLY source for eligibility. Facts are the ONLY source for college claims.",
-    JSON.stringify({ interpretation: ctx.interpretation, preference: ctx.preference, rows: ctx.includedRows, stretch: ctx.stretchRows, facts: ctx.facts }, null, 2),
-  ].join("\n");
+    row.institute,
+    row.branch,
+    row.degree,
+    row.duration,
+    row.courseType,
+    row.openingRank,
+    row.closingRank,
+    withMargin ? `+${row.margin}` : "",
+    withMargin ? row.band : "",
+  ]
+    .filter((cell) => cell !== "")
+    .join("|");
+}
+
+// Pipe-delimited rather than pretty JSON: the same token budget carries every
+// option a student is choosing between instead of an arbitrary first slice.
+export function buildDataMessage(ctx: GroundedContext) {
+  const blocks: string[] = [];
+
+  if (ctx.includedRows.length > 0) {
+    const withMargin = ctx.rank !== null;
+    blocks.push(
+      [
+        `ROWS — official JoSAA ${ctx.year} Round ${ctx.round}, ${ctx.seatType}, ${ctx.gender === "Female" ? "Female-only" : "Gender-Neutral"} seats. These are the only cutoffs that exist for this answer.`,
+        `columns: institute|branch|degree|duration|type|opening|closing${withMargin ? "|margin|band" : ""}`,
+        ...ctx.includedRows.map((row) => rowLine(row, withMargin)),
+      ].join("\n"),
+    );
+    blocks.push(
+      `COVERAGE: ${ctx.coverage.totalInReach} programs within reach, ${ctx.coverage.included} listed above, ${ctx.coverage.institutesIncluded} of ${ctx.coverage.institutesAvailable} institutes represented.`,
+    );
+  } else if (ctx.rank !== null && ctx.intent === "cutoff_options") {
+    blocks.push(
+      ctx.preferenceEmpty
+        ? `ROWS: empty. No program matches ${ctx.filterSummary ?? "the stated filters"} in ${ctx.year} Round ${ctx.round} for ${ctx.seatType} / ${ctx.gender === "Female" ? "Female-only" : "Gender-Neutral"}.`
+        : `ROWS: empty. No program in ${ctx.year} Round ${ctx.round} closed at or above rank ${formatRank(ctx.rank)} for ${ctx.seatType} / ${ctx.gender === "Female" ? "Female-only" : "Gender-Neutral"}.`,
+    );
+  }
+
+  if (ctx.stretchRows.length > 0) {
+    blocks.push(
+      [
+        "STRETCH — closed BELOW the student's rank in this round. Only reachable if cutoffs relax. Never present these as within reach.",
+        "columns: institute|branch|closing|short_by",
+        ...ctx.stretchRows.map((row) => `${row.institute}|${row.branch}|${row.closingRank}|${row.shortfall}`),
+      ].join("\n"),
+    );
+  }
+
+  if (ctx.nearestAbove.length > 0) {
+    blocks.push(
+      [
+        "NEAREST — nothing was within reach, so these are the highest closing ranks available, for bearings only. If short_by is large this rank is outside IIT range for this category and round; say that plainly instead of calling them near misses.",
+        "columns: institute|branch|closing|short_by",
+        ...ctx.nearestAbove.map((row) => `${row.institute}|${row.branch}|${row.closingRank}|${row.shortfall}`),
+      ].join("\n"),
+    );
+  }
+
+  if (ctx.facts.length > 0) {
+    blocks.push(
+      [
+        "FACTS — the only source for placement, fee, curriculum, support, startup and counselling-process claims. Cite as [n].",
+        "columns: [n] institute|topic|coverage|published|claim|url",
+        ...ctx.facts.map(
+          (fact) =>
+            `[${fact.ref}] ${fact.institute}|${fact.topic}|${fact.coverage}|${fact.published_ay || "n/a"}|${fact.claim}|${fact.source_url}`,
+        ),
+      ].join("\n"),
+    );
+  }
+
+  if (ctx.datasetsAvailable.length > 0) {
+    blocks.push(`DATASETS available in this database: ${ctx.datasetsAvailable.join(", ")}.`);
+  }
+
+  if (blocks.length === 0) return "No grounding data is needed for this turn.";
+  return blocks.join("\n\n");
 }

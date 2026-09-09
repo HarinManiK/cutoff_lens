@@ -37,6 +37,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Grounding checks run on the same credential-less CSV path: slot
+      # resolution, evidence filtering and intent routing must hold without a DB.
+      - name: AI grounding checks
+        run: npm run check:ai
+
       # No Supabase credentials are set here on purpose: the build must stay green
       # on the local-CSV fallback, which is the path that runs with no setup.
       - name: Build

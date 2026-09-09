@@ -1,158 +1,239 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import {
   buildGroundedContext,
-  type AiChatMessage,
+  type GroundedContext,
   type PageState,
 } from "@/lib/ai/jee-advanced-context";
 import { buildDataMessage, buildSystemPrompt } from "@/lib/ai/prompt";
 import { buildDatabaseAnswer } from "@/lib/ai/answer-fallback";
-import { callModel, callNvidiaStream } from "@/lib/ai/model";
+import { isAiConfigured, streamModel, type ChatTurn, type StreamResult } from "@/lib/ai/model";
 
 export const dynamic = "force-dynamic";
+// Reasoning models spend real time before the first token; the platform default
+// would cut a good answer off mid-stream.
+export const maxDuration = 60;
 
-type ChatRequest = {
-  exam?: string;
-  messages?: AiChatMessage[];
-  pageState?: PageState;
-  stream?: boolean;
-};
+const MAX_MESSAGE_CHARS = 2_000;
+const MAX_TURNS = 10;
 
-function sanitizeMessages(messages: AiChatMessage[]) {
+const chatRequestSchema = z.object({
+  exam: z.string().max(64).optional(),
+  stream: z.boolean().optional(),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+      }),
+    )
+    .max(60),
+  pageState: z
+    .object({
+      rank: z.string().max(20).optional(),
+      seatType: z.string().max(40).optional(),
+      gender: z.enum(["Male", "Female"]).optional(),
+      year: z.string().max(8).optional(),
+      round: z.string().max(4).optional(),
+      selectedInstitutes: z.array(z.string().max(120)).max(60).optional(),
+      selectedPrograms: z.array(z.string().max(200)).max(400).optional(),
+      selectedDegrees: z.array(z.string().max(80)).max(40).optional(),
+      selectedDurations: z.array(z.string().max(40)).max(20).optional(),
+      selectedProgramTypes: z.array(z.string().max(60)).max(20).optional(),
+    })
+    .optional(),
+});
+
+// Best-effort throttle. Serverless instances do not share memory, so this
+// blunts accidental loops and casual abuse rather than acting as a real quota;
+// the model spend it protects is small but not free.
+const RATE_LIMIT = { windowMs: 60_000, maxRequests: 12 };
+const hits = new Map<string, number[]>();
+
+function rateLimited(key: string) {
+  const now = Date.now();
+  const recent = (hits.get(key) ?? []).filter((at) => now - at < RATE_LIMIT.windowMs);
+  recent.push(now);
+  hits.set(key, recent);
+  if (hits.size > 5_000) hits.clear();
+  return recent.length > RATE_LIMIT.maxRequests;
+}
+
+function clientKey(request: NextRequest) {
+  const forwarded = request.headers.get("x-forwarded-for") ?? "";
+  return forwarded.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "anonymous";
+}
+
+function sanitizeTurns(messages: ChatTurn[]): ChatTurn[] {
   return messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role, content: String(m.content ?? "").slice(0, 3000) }))
-    .filter((m) => m.content.trim().length > 0)
-    .slice(-8);
+    .map((message) => ({ role: message.role, content: String(message.content ?? "").trim().slice(0, MAX_MESSAGE_CHARS) }))
+    .filter((message) => message.content.length > 0)
+    .slice(-MAX_TURNS);
+}
+
+function answerContext(ctx: GroundedContext) {
+  return {
+    rank: ctx.rank,
+    seatType: ctx.seatType,
+    gender: ctx.gender,
+    year: ctx.year,
+    round: ctx.round,
+    intent: ctx.intent,
+    filters: ctx.filterSummary,
+    totalInReach: ctx.coverage.totalInReach,
+    shown: ctx.coverage.included,
+    institutesIncluded: ctx.coverage.institutesIncluded,
+    institutesAvailable: ctx.coverage.institutesAvailable,
+    // Turns that ask a question rather than answer one carry no evidence, and
+    // the UI should not badge them with a data summary.
+    hasEvidence: ctx.includedRows.length > 0 || ctx.facts.length > 0,
+  };
+}
+
+function citationsOf(ctx: GroundedContext) {
+  return ctx.facts.map((fact) => ({
+    ref: fact.ref,
+    institute: fact.institute,
+    topic: fact.topic,
+    claim: fact.claim,
+    url: fact.source_url,
+    title: fact.source_title,
+    publisher: fact.publisher,
+    publishedAy: fact.published_ay,
+    coverage: fact.coverage,
+  }));
+}
+
+function fallbackNotice(result: Extract<StreamResult, { ok: false }>) {
+  return `${result.message}, so this is the database answer.`;
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => null)) as ChatRequest | null;
-  const messages = sanitizeMessages(body?.messages ?? []);
-  const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content.trim();
+  const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  const body = parsed.data;
 
+  const turns = sanitizeTurns(body.messages);
+  const lastUser = [...turns].reverse().find((turn) => turn.role === "user")?.content;
   if (!lastUser) {
     return NextResponse.json({ error: "Message is required." }, { status: 400 });
   }
-  if ((body?.exam ?? "jee-advanced") !== "jee-advanced") {
-    return NextResponse.json({ message: "Sorry, can't fetch that info." });
+  if ((body.exam ?? "jee-advanced") !== "jee-advanced") {
+    return NextResponse.json({ error: "Unsupported exam." }, { status: 400 });
+  }
+  if (rateLimited(clientKey(request))) {
+    return NextResponse.json(
+      { error: "Too many questions in a row. Give it a minute and try again." },
+      { status: 429 },
+    );
   }
 
+  let ctx: GroundedContext;
   try {
-    const ctx = await buildGroundedContext(lastUser, body?.pageState ?? {}, messages);
-    const citations = ctx.facts.map((f) => ({
-      ref: f.ref,
-      institute: f.institute,
-      topic: f.topic,
-      claim: f.claim,
-      url: f.source_url,
-      title: f.source_title,
-      publisher: f.publisher,
-      publishedAy: f.published_ay,
-      coverage: f.coverage,
-    }));
-
-    // Streaming path: meta (citations + interpreted filters) first so the
-    // client can show progress, then live tokens, then done. Any model
-    // failure falls back to the database answer inside the same stream.
-    if (body?.stream && process.env.NVIDIA_API_KEY) {
-      const encoder = new TextEncoder();
-      const system = buildSystemPrompt(ctx);
-      const dataMessage = buildDataMessage(ctx);
-      const context = {
-        rank: ctx.rank,
-        seatType: ctx.seatType,
-        gender: ctx.gender,
-        year: ctx.year,
-        round: ctx.round,
-        totalMatchingRows: ctx.totalMatchingRows,
-      };
-      const send = (controller: ReadableStreamDefaultController, event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      };
-      const stream = new ReadableStream({
-        async start(controller) {
-          try {
-            send(controller, "meta", { citations, context });
-            const result = await callNvidiaStream(system, dataMessage, lastUser, (text) =>
-              send(controller, "token", { text }),
-            );
-            if (result.ok) {
-              send(controller, "done", { model: result.model });
-            } else {
-              send(controller, "message", {
-                message: buildDatabaseAnswer(ctx),
-                model: "database-only-fallback",
-                fallbackReason: result.message,
-              });
-            }
-          } catch {
-            send(controller, "message", {
-              message: buildDatabaseAnswer(ctx),
-              model: "database-only-fallback",
-            });
-          } finally {
-            controller.close();
-          }
-        },
-      });
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
-    }
-
-    const result = await callModel(buildSystemPrompt(ctx), buildDataMessage(ctx), lastUser);
-    if (!result) {
-      return NextResponse.json({
-        message: buildDatabaseAnswer(ctx),
-        model: "database-only",
-        citations,
-        context: {
-          rank: ctx.rank,
-          seatType: ctx.seatType,
-          gender: ctx.gender,
-          year: ctx.year,
-          round: ctx.round,
-          totalMatchingRows: ctx.totalMatchingRows,
-        },
-      });
-    }
-    if (!result.ok) {
-      return NextResponse.json({
-        message: buildDatabaseAnswer(ctx),
-        model: "database-only-fallback",
-        citations,
-        fallbackReason: result.message,
-        context: {
-          rank: ctx.rank,
-          seatType: ctx.seatType,
-          gender: ctx.gender,
-          year: ctx.year,
-          round: ctx.round,
-          totalMatchingRows: ctx.totalMatchingRows,
-        },
-      });
-    }
-    return NextResponse.json({
-      message: result.answer,
-      model: result.model,
-      citations,
-      context: {
-        rank: ctx.rank,
-        seatType: ctx.seatType,
-        gender: ctx.gender,
-        year: ctx.year,
-        round: ctx.round,
-        totalMatchingRows: ctx.totalMatchingRows,
-      },
-    });
+    ctx = await buildGroundedContext(lastUser, (body.pageState ?? {}) as PageState, turns);
   } catch (error) {
+    // The message is for the server log; the client gets nothing internal.
+    console.error("ai/chat: grounding failed", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to answer.", message: "Sorry, can't fetch that info." },
+      { error: "Could not read the cutoff data for that question." },
       { status: 500 },
     );
   }
+
+  const citations = citationsOf(ctx);
+  const context = answerContext(ctx);
+  const modelRequest = {
+    system: buildSystemPrompt(ctx),
+    dataMessage: buildDataMessage(ctx),
+    history: turns,
+    latestUserMessage: lastUser,
+  };
+
+  // With no provider configured the deterministic answer is the product, not a
+  // degraded mode, so it is labelled honestly rather than dressed up as the AI.
+  if (!isAiConfigured()) {
+    return NextResponse.json({
+      message: buildDatabaseAnswer(ctx),
+      source: "database",
+      notice: null,
+      citations,
+      context,
+    });
+  }
+
+  if (body.stream) {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let closed = false;
+        const send = (event: string, data: unknown) => {
+          if (closed) return;
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        };
+        try {
+          send("meta", { citations, context });
+          let emitted = false;
+          const result = await streamModel(modelRequest, (text) => {
+            emitted = true;
+            send("token", { text });
+          });
+          if (result.ok) {
+            send("done", { source: "model", model: result.model });
+          } else if (emitted) {
+            // Partial answer already on screen: keep it, but say it is cut off
+            // rather than pretending it finished.
+            send("done", {
+              source: "model",
+              notice: "The answer was cut off before it finished. Ask again to retry.",
+            });
+          } else {
+            send("replace", {
+              message: buildDatabaseAnswer(ctx),
+              source: "database",
+              notice: fallbackNotice(result),
+            });
+          }
+        } catch (error) {
+          console.error("ai/chat: stream failed", error);
+          send("replace", {
+            message: buildDatabaseAnswer(ctx),
+            source: "database",
+            notice: "The AI model did not respond, so this is the database answer.",
+          });
+        } finally {
+          closed = true;
+          controller.close();
+        }
+      },
+    });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  }
+
+  const result = await streamModel(modelRequest, () => {});
+  if (!result.ok) {
+    return NextResponse.json({
+      message: buildDatabaseAnswer(ctx),
+      source: "database",
+      notice: fallbackNotice(result),
+      citations,
+      context,
+    });
+  }
+  return NextResponse.json({
+    message: result.text,
+    source: "model",
+    model: result.model,
+    notice: null,
+    citations,
+    context,
+  });
 }

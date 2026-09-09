@@ -1466,16 +1466,22 @@ button {
   padding: 10px 12px;
 }
 
-.ai-chat-input input {
+.ai-chat-input textarea {
   width: 100%;
   min-width: 0;
   min-height: 44px;
+  max-height: 132px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 0 12px;
+  padding: 12px;
+  overflow-y: auto;
+  resize: none;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
-.ai-chat-input input:focus {
+.ai-chat-input textarea:focus {
   border-color: rgba(37, 89, 71, 0.5);
   outline: none;
 }
@@ -1493,6 +1499,105 @@ button {
 
 .ai-chat-input button:disabled {
   opacity: 0.6;
+}
+
+.ai-starters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.ai-starters button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--moss);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-starters button:hover {
+  border-color: rgba(37, 89, 71, 0.45);
+  background: var(--mint);
+}
+
+/* Says an answer came from the database rather than the model. The product
+   claim is honesty, so a degraded answer has to look degraded. */
+.ai-notice {
+  margin: 8px 0 0;
+  border-left: 3px solid var(--saffron);
+  background: rgba(243, 168, 59, 0.1);
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ai-retry {
+  align-self: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai-retry:hover {
+  border-color: rgba(37, 89, 71, 0.4);
+  color: var(--moss);
+}
+
+.ai-retry svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+.ai-table-scroll {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.ai-table-scroll table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+.ai-table-scroll th,
+.ai-table-scroll td {
+  border: 1px solid var(--line);
+  padding: 4px 7px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ai-table-scroll th {
+  background: var(--mint);
+  color: var(--moss);
+  font-weight: 800;
+}
+
+.ai-msg__body a {
+  color: var(--moss);
+  text-decoration: underline;
+}
+
+.ai-msg__body code {
+  border-radius: 4px;
+  background: rgba(37, 89, 71, 0.08);
+  padding: 1px 4px;
+  font-size: 11px;
+}
+
+.ai-msg__body em {
+  color: var(--muted);
 }
 
 @media (max-width: 860px) {
