@@ -20,6 +20,7 @@ import {
   shortenInstituteName,
 } from "@/lib/display";
 import { cutoffMatchesSearch, programMatchesSearch } from "@/lib/search";
+import { AiChatbot } from "@/components/AiChatbot";
 import { LogoMark } from "@/components/LogoMark";
 import { branchGroups } from "@/lib/branch-groups";
 import type {
@@ -1071,6 +1072,21 @@ export function JeeAdvancedExplorer() {
           </>
         ) : null}
       </section>
+
+      <AiChatbot
+        pageState={{
+          rank,
+          seatType,
+          gender,
+          year,
+          round,
+          selectedInstitutes,
+          selectedPrograms,
+          selectedDegrees,
+          selectedDurations,
+          selectedProgramTypes,
+        }}
+      />
     </main>
   );
 }
